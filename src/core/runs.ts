@@ -85,10 +85,14 @@ export function prepareSimulationRun(project: Project, input: { id: string; engi
   if (!result.ok) return result;
   return { ok: true, run: freeze({ id: input.id, status: "prepared", snapshot: result.snapshot, createdAt: input.createdAt, completedAt: null, result: null, error: null }) };
 }
-function checkSnapshot(run: SimulationRun) {
-  if (snapshotContentKey(run.snapshot) !== run.snapshot.contentKey || snapshotIntegrityKey(run.snapshot) !== run.snapshot.integrityKey)
+/** Verify a prepared snapshot before an engine consumes it. This is not a security signature. */
+export function validateSimulationSnapshot(snapshot: SimulationSnapshot) {
+  if (snapshot.schemaVersion !== 1)
+    throw new DomainValidationError("run.snapshot.schemaVersion", "unsupported snapshot version");
+  if (snapshotContentKey(snapshot) !== snapshot.contentKey || snapshotIntegrityKey(snapshot) !== snapshot.integrityKey)
     throw new DomainValidationError("run.snapshot", "stored input snapshot was modified");
 }
+function checkSnapshot(run: SimulationRun) { validateSimulationSnapshot(run.snapshot); }
 export function assessRunStaleness(run: SimulationRun, project: Project, engine: ModuleVersion): { stale: boolean; issues: DomainIssue[] } {
   const issues: DomainIssue[] = [];
   try { checkSnapshot(run); } catch (error) {
@@ -120,9 +124,40 @@ export function completeSimulationRun(run: SimulationRun, result: SimulationResu
   for (const field of ["averageWaitingSeconds", "maxWaitingSeconds", "throughputCustomersPerHour", "averageCustomerTimeInSystemSeconds", "revenue"] as const) number(result[field], `result.${field}`);
   for (const field of ["tableUtilization", "kitchenUtilization", "staffUtilization"] as const) number(result[field], `result.${field}`, 0, 1);
   if (result.customersServed + result.customersLost > result.customersArrived) throw new DomainValidationError("result.customers", "served + lost exceeds arrivals");
+  if (result.customersUnfinished !== undefined) {
+    number(result.customersUnfinished, "result.customersUnfinished", 0, Number.MAX_SAFE_INTEGER, true);
+    if (result.customersServed + result.customersLost + result.customersUnfinished !== result.customersArrived)
+      throw new DomainValidationError("result.customers", "served + lost + unfinished must equal arrivals");
+  }
   if (result.maxWaitingSeconds < result.averageWaitingSeconds) throw new DomainValidationError("result.waiting", "maximum is smaller than average");
   if (result.currency !== run.snapshot.input.operation.currency) throw new DomainValidationError("result.currency", "must match operation currency");
   result.revenueByHour.forEach((b) => { number(b.hour, "result.revenue.hour", 0, 23, true); number(b.revenue, "result.revenue.value"); });
+  if (result.hourlyThroughput !== undefined) {
+    if (new Set(result.hourlyThroughput.map((b) => b.hour)).size !== result.hourlyThroughput.length)
+      throw new DomainValidationError("result.hourlyThroughput", "duplicate hour");
+    result.hourlyThroughput.forEach((b) => {
+      number(b.hour, "result.hourlyThroughput.hour", 0, 23, true);
+      number(b.customersServed, "result.hourlyThroughput.customersServed", 0, Number.MAX_SAFE_INTEGER, true);
+      const { startMinute, durationSeconds } = run.snapshot.input.config;
+      if (b.hour < Math.floor(startMinute / 60) || b.hour >= Math.ceil((startMinute * 60 + durationSeconds) / 3600))
+        throw new DomainValidationError("result.hourlyThroughput.hour", "hour is outside the observation interval");
+    });
+    if (result.hourlyThroughput.reduce((sum, b) => sum + b.customersServed, 0) !== result.customersServed)
+      throw new DomainValidationError("result.hourlyThroughput", "hourly completions must sum to customers served");
+  }
+  if (result.resourceUtilization !== undefined) {
+    if (new Set(result.resourceUtilization.map((r) => r.resourceId)).size !== result.resourceUtilization.length)
+      throw new DomainValidationError("result.resourceUtilization", "duplicate resource");
+    result.resourceUtilization.forEach((r) => {
+      text(r.resourceId, "result.resourceUtilization.resourceId");
+      number(r.capacityUnits, "result.resourceUtilization.capacityUnits", 0, Number.MAX_SAFE_INTEGER, true);
+      number(r.utilization, "result.resourceUtilization.utilization", 0, 1);
+    });
+  }
+  if (result.revenueStatus !== undefined && result.revenueStatus !== "not-modeled")
+    throw new DomainValidationError("result.revenueStatus", "unsupported revenue status");
+  if (result.revenueStatus === "not-modeled" && (result.revenue !== 0 || result.revenueByHour.some((b) => b.revenue !== 0)))
+    throw new DomainValidationError("result.revenue", "unmodeled revenue must remain zero");
   canonicalJson(result);
   return freeze({ ...structuredClone(run), status: "completed", completedAt, result: structuredClone(result), error: null });
 }

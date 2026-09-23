@@ -77,6 +77,8 @@ export interface DemandParameters {
   dinnerMultiplier: number;
   weatherEventMultiplier: number;
   deliveryRatio: number;
+  /** Optional explicit day/hour adjustments; omitted buckets use 1. */
+  hourlyMultipliers?: { dayType: DayType; hour: number; multiplier: number }[];
 }
 /** Arrivals are individual customers/hour (not customer parties). */
 export interface DemandBucket {
@@ -105,20 +107,35 @@ export interface OperationPolicy {
   averageSpendingPerCustomer: number;
   currency: string;
   assumptions: Assumption[];
+  /** Individual-customer demand is converted to party arrivals using the mean size. */
+  partySizeDistribution?: { size: number; probability: number }[];
+  /** Admission queue patience in seconds; null means no timeout. */
+  maxQueueWaitSeconds?: number | null;
 }
-/** Declarative industry process; a future engine schedules these generic stages. */
+/** Declarative industry process interpreted by a UI-independent event scheduler. */
 export type DurationDistribution = { kind: "constant"; seconds: number } | { kind: "exponential"; meanSeconds: number };
 export interface OperationProcess {
   schemaVersion: 1;
   model: ModuleVersion;
   startStageId: string;
+  partySizeDistribution?: { size: number; probability: number }[];
   /** Capacity units are defined by the model (e.g. server, kitchen slot, seat). */
-  resources: { id: string; capacityUnits: number }[];
+  resources: {
+    id: string;
+    capacityUnits: number;
+    category?: "table" | "kitchen" | "staff" | "other";
+    /** Exclusive-unit capacities (e.g. seats on each table), indexed per unit. */
+    unitCapacities?: number[];
+  }[];
   stages: {
     id: string;
     duration: DurationDistribution;
     /** Acquire atomically in FIFO order; release after this stage or process exit. */
-    requirements: { resourceId: string; units: number; release: "stage-end" | "process-end" }[];
+    requirements: {
+      resourceId: string; units: number; release: "stage-end" | "process-end";
+      unitsPerCustomer?: boolean;
+      minimumUnitCapacity?: "party-size";
+    }[];
     nextStageId: string | null;
     /** null means wait indefinitely. An explicit timeout routes to timeoutStageId. */
     queue: { maxWaitSeconds: number; timeoutStageId: string } | null;
@@ -227,6 +244,12 @@ export interface SimulationResult {
   revenueByHour: { hour: number; revenue: number }[];
   bottlenecks: { resource: string; description: string }[];
   assumptions: Assumption[];
+  /** Censored customers still in the process at the observation horizon. */
+  customersUnfinished?: number;
+  hourlyThroughput?: { hour: number; customersServed: number }[];
+  resourceUtilization?: { resourceId: string; capacityUnits: number; utilization: number }[];
+  /** Numeric revenue fields remain zero for compatibility when no financial model ran. */
+  revenueStatus?: "not-modeled";
 }
 export interface SimulationRun {
   id: string;

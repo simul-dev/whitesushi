@@ -4,7 +4,7 @@ import type {
   SimulationSnapshot, Site, StoreLayout,
 } from "./types";
 
-/** Contracts only. Real and explicitly labelled demo providers are later phases. */
+/** Provider contract; concrete providers live outside Core and preserve provenance. */
 export interface MarketProvider {
   readonly descriptor: ModuleVersion;
   fetch(input: { site: Site; period: MarketProfile["period"] }): Promise<MarketProfile>;

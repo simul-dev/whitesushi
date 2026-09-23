@@ -134,6 +134,14 @@ export function validateLayout(layout: StoreLayout) {
 export function validateDemandParameters(parameters: DemandParameters) {
   for (const key of ["categoryParticipationRate", "brandShare", "visitConversionRate", "deliveryRatio"] as const) number(parameters[key], `demandParameters.${key}`, 0, 1);
   for (const key of ["weekdayMultiplier", "weekendMultiplier", "lunchMultiplier", "dinnerMultiplier", "weatherEventMultiplier"] as const) number(parameters[key], `demandParameters.${key}`);
+  if (parameters.hourlyMultipliers !== undefined) {
+    unique(parameters.hourlyMultipliers.map((b) => `${b.dayType}:${b.hour}`), "demandParameters.hourlyMultipliers");
+    parameters.hourlyMultipliers.forEach((b) => {
+      day(b.dayType, "demandParameters.hourlyMultipliers.dayType");
+      number(b.hour, "demandParameters.hourlyMultipliers.hour", 0, 23, true);
+      number(b.multiplier, "demandParameters.hourlyMultipliers.multiplier", 0, 10);
+    });
+  }
 }
 function provenance(value: MarketProfile["provenance"], path: string) {
   if (!["observed", "manual", "derived", "demo"].includes(value.kind)) fail(path, "unknown data provenance");
@@ -181,6 +189,18 @@ export function validateOperation(policy: OperationPolicy) {
     if (windows.some((w, i) => i > 0 && w.startMinute < windows[i - 1].endMinute)) fail("operation.operatingWindows", "windows overlap");
   }
   number(policy.averageSpendingPerCustomer, "operation.averageSpendingPerCustomer"); text(policy.currency, "operation.currency");
+  if (policy.partySizeDistribution !== undefined) {
+    if (!policy.partySizeDistribution.length) fail("operation.partySizeDistribution", "must contain a party size");
+    unique(policy.partySizeDistribution.map((p) => String(p.size)), "operation.partySizeDistribution");
+    policy.partySizeDistribution.forEach((p) => {
+      number(p.size, "operation.partySizeDistribution.size", 1, Number.MAX_SAFE_INTEGER, true);
+      number(p.probability, "operation.partySizeDistribution.probability", 0, 1);
+    });
+    if (Math.abs(policy.partySizeDistribution.reduce((sum, p) => sum + p.probability, 0) - 1) > 1e-9)
+      fail("operation.partySizeDistribution", "probabilities must sum to one");
+  }
+  if (policy.maxQueueWaitSeconds !== undefined && policy.maxQueueWaitSeconds !== null)
+    number(policy.maxQueueWaitSeconds, "operation.maxQueueWaitSeconds");
   assumptions(policy.assumptions, "operation.assumptions");
 }
 export function validateSimulation(config: SimulationConfig) {

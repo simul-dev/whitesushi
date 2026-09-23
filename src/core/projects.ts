@@ -58,7 +58,7 @@ export function applyOverrides(base: ProjectConfiguration, overrides: ScenarioOv
   const needBase = (key: string): never => { throw new DomainValidationError(`overrides.${key}`, "initialize the complete base section before patching it"); };
   if (Object.hasOwn(overrides, "demandParameters")) {
     out.demandParameters = overrides.demandParameters === null ? null : {
-      ...(out.demandParameters ?? needBase("demandParameters")), ...overrides.demandParameters,
+      ...(out.demandParameters ?? needBase("demandParameters")), ...structuredClone(overrides.demandParameters),
     };
   }
   if (Object.hasOwn(overrides, "simulation")) {
