@@ -15,6 +15,8 @@ export interface ScenarioSelection { kind: ComparisonKind; scenarioId: string }
 /** Optional named starting points; percentages are relative to the same base. */
 export function createComparisonScenarios(project: Project, input: {
   idPrefix: string; createdAt: string; customOverrides: ScenarioOverrides;
+  /** Product presets may explicitly cap a probability at 100%; default callers remain strict. */
+  boundConversionRate?: boolean;
 }): { project: Project; selections: ScenarioSelection[] } {
   const spendingPath = project.base.financial?.averageSpendingPerCustomer !== undefined
     ? "financial.averageSpendingPerCustomer" : "operation.averageSpendingPerCustomer";
@@ -25,7 +27,9 @@ export function createComparisonScenarios(project: Project, input: {
   ] as const) {
     const id = `${input.idPrefix}-${kind.toLowerCase()}`;
     next = createScenarioVariant(next, { id, name: kind, createdAt: input.createdAt, changes: [
-      { path: "demandParameters.visitConversionRate", value: { kind: "percentage-change", percent: conversion } },
+      { path: "demandParameters.visitConversionRate", value: input.boundConversionRate
+        ? { kind: "absolute", value: Math.min(1, project.base.demandParameters!.visitConversionRate * (1 + conversion / 100)) }
+        : { kind: "percentage-change", percent: conversion } },
       { path: spendingPath, value: { kind: "percentage-change", percent: spending } },
     ] });
     selections.push({ kind, scenarioId: id });
@@ -44,7 +48,7 @@ export interface ScenarioDemandSummary {
   /** Integrates hourly rates only over open portions of this observation window. */
   basis: "expected-arrivals-during-open-observation-window";
 }
-function summarizeDemand(resolved: ResolvedScenario): ScenarioDemandSummary {
+export function summarizeDemand(resolved: ResolvedScenario): ScenarioDemandSummary {
   const { demand, operation, simulation } = resolved.configuration;
   if (!demand || !operation || !simulation) throw new Error("Scenario demand has not been prepared");
   const start = simulation.startMinute * 60, end = start + simulation.durationSeconds;
