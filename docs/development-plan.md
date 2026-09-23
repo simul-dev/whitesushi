@@ -29,3 +29,5 @@ Phase 2의 public contracts를 기준으로 Market provider, Demand model, Opera
 ## Phase 1 실행 기록
 
 2026-09-23: 단위 테스트 39개, Chrome E2E 7개(50.4초), production build 성공. 기존 6개 E2E는 변경 없이 통과했고 문서 사본/세션 격리 1개를 추가했다. Phase 0 출력과 비교했을 때 2D overview PNG, 6개 내보낸 PNG, GLB, GLTF 모두 **바이트 단위로 동일**했다. PDF·JSON 원본과 CSS는 변경하지 않았다.
+
+독립 코드 검토에서 새로 가능해진 문서 전환 중 PDF worker 정리 누락을 발견해 후속 수정했다. 열려 있는 보정 창과 늦게 끝나는 PDF import가 문서 전환 후 worker를 남기지 않는 실제 브라우저 검사 2개를 추가했고, 세션 경계 검사 3개 모두 통과했다. 브라우저 download helper도 순수 모델에서 분리했다.

@@ -38,12 +38,12 @@ import {
   type ViewPreset,
 } from "./types";
 import {
-  download,
   newEntity,
   patchEntity,
   TYPE_LABELS,
   validatePlan,
 } from "./model";
+import { download } from "./browser";
 import PlanEditor from "./PlanEditor";
 import ImportDialog from "./ImportDialog";
 import { openPdf, type PdfSession } from "./pdfImport";
@@ -93,6 +93,24 @@ export default function SpaceWorkspace({ initialPlan, onPlanChange }: SpaceWorks
     jsonInput = useRef<HTMLInputElement>(null),
     [historyVersion, setHistoryVersion] = useState(0);
   const changeListener = useRef(onPlanChange);
+  const mounted = useRef(false),
+    pdfRequest = useRef(0),
+    activePdf = useRef<PdfSession | null>(null),
+    disposedPdfs = useRef(new WeakSet<PdfSession>());
+  async function disposePdf(pdf: PdfSession) {
+    if (activePdf.current === pdf) activePdf.current = null;
+    if (disposedPdfs.current.has(pdf)) return;
+    disposedPdfs.current.add(pdf);
+    await pdf.destroy();
+  }
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      pdfRequest.current += 1;
+      if (activePdf.current) void disposePdf(activePdf.current).catch(() => undefined);
+    };
+  }, []);
   changeListener.current = onPlanChange;
   useEffect(() => {
     changeListener.current?.(structuredClone(plan));
@@ -190,35 +208,48 @@ export default function SpaceWorkspace({ initialPlan, onPlanChange }: SpaceWorks
     setNotice("도면을 불러왔습니다. 치수와 추출 결과를 검토하세요.");
   }
   async function uploadPdf(file: File) {
+    const request = ++pdfRequest.current;
+    const isCurrent = () => mounted.current && request === pdfRequest.current;
+    if (activePdf.current) void disposePdf(activePdf.current).catch(() => undefined);
+    setSession(null);
     setBusy("PDF 분석 중");
     setError("");
     try {
       if (file.size > 30 * 1024 * 1024)
         throw new Error("PDF는 30MB 이하로 업로드하세요.");
       const bytes = new Uint8Array(await file.arrayBuffer());
+      if (!isCurrent()) return;
       const sha = Array.from(
         new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
       )
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("");
+      if (!isCurrent()) return;
+      const pdf = await openPdf(bytes, file.name);
+      if (!isCurrent()) {
+        await disposePdf(pdf);
+        return;
+      }
+      activePdf.current = pdf;
       if (sha === sample.sourceSha256) {
-        const pdf = await openPdf(bytes, file.name);
         try {
           const page = await pdf.renderPage(1);
-          replace({
-            ...structuredClone(sample),
-            overlay: { ...sample.overlay!, url: page.imageUrl },
-          });
+          if (isCurrent()) {
+            replace({
+              ...structuredClone(sample),
+              overlay: { ...sample.overlay!, url: page.imageUrl },
+            });
+          }
         } finally {
-          await pdf.destroy();
+          await disposePdf(pdf);
         }
       } else {
-        setSession(await openPdf(bytes, file.name));
+        setSession(pdf);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (isCurrent()) setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setBusy("");
+      if (isCurrent()) setBusy("");
     }
   }
   async function uploadJson(file: File) {
@@ -1173,12 +1204,12 @@ export default function SpaceWorkspace({ initialPlan, onPlanChange }: SpaceWorks
         <ImportDialog
           session={session}
           onClose={() => {
-            void session.destroy();
+            void disposePdf(session).catch(() => undefined);
             setSession(null);
           }}
           onImport={(p) => {
             replace(p);
-            void session.destroy();
+            void disposePdf(session).catch(() => undefined);
             setSession(null);
           }}
         />
