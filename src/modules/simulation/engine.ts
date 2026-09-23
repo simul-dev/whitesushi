@@ -9,11 +9,13 @@ import { MinHeap, randomStream } from "./random";
 type Stage = OperationProcess["stages"][number];
 type Requirement = Stage["requirements"][number];
 type Resource = OperationProcess["resources"][number] & {
-  busy: number; busySeconds: number; blockedCustomerSeconds: number; occupied: Set<number>;
+  busy: number; busySeconds: number; blockedCustomerSeconds: number; blockedOrderSeconds: number; occupied: Set<number>;
 };
 type Allocation = { resourceId: string; units: number; members: number[]; release: Requirement["release"] };
 type CustomerParty = {
   id: number; size: number; arrivedAt: number; waitSeconds: number; stageId: string;
+  channel: "dine-in" | "delivery"; streamId: string; startStageId: string;
+  foodWaitSeconds: number; kitchenWaitSeconds: number;
   state: "waiting" | "active" | "served" | "lost"; requestedAt: number; requestId: number; held: Allocation[];
 };
 type Event = { time: number; sequence: number; kind: "arrival" | "completion" | "timeout"; party: CustomerParty; requestId: number };
@@ -46,19 +48,31 @@ export class DiscreteEventSimulationEngine implements SimulationEngine {
     const firstHour = Math.floor(start / 3600), lastHour = Math.ceil((start + horizon) / 3600);
     const demandByHour = new Map(demand.buckets.filter((bucket) => bucket.dayType === config.dayType).map((bucket) => [bucket.hour, bucket]));
     for (let hour = firstHour; hour < lastHour; hour++) if (!demandByHour.has(hour)) fail("demand.buckets", `missing explicit demand for hour ${hour}`);
+    const streams = process.arrivalStreams ?? [{ id: "dine-in", channel: "dine-in" as const, startStageId: process.startStageId }];
+    const dineInStream = streams.find(stream => stream.channel === "dine-in")!;
+    const deliveryStream = streams.find(stream => stream.channel === "delivery");
+    const deliveryByHour = new Map((demand.deliveryBuckets ?? []).filter(bucket => bucket.dayType === config.dayType).map(bucket => [bucket.hour, bucket]));
+    if (demand.deliveryBuckets !== undefined) {
+      for (let hour = firstHour; hour < lastHour; hour++) {
+        const bucket = deliveryByHour.get(hour);
+        if (!bucket) fail("demand.deliveryBuckets", `missing explicit delivery demand for hour ${hour}; specify zero orders rather than omitting the hour`);
+        if (bucket!.expectedOrdersPerHour > 0 && !deliveryStream) fail("process.arrivalStreams", "positive delivery orders require an explicit delivery process stream");
+      }
+    }
     const windows = operation.operatingWindows.filter((window) => window.dayType === config.dayType);
     if (!windows.length) fail("operation.operatingWindows", "missing operating hours for selected day");
     const sizes = process.partySizeDistribution ?? [{ size: 1, probability: 1 }];
     const probabilityMass = sizes.reduce((sum, item) => sum + item.probability, 0);
     const meanPartySize = sizes.reduce((sum, item) => sum + item.size * item.probability, 0) / probabilityMass;
     const stages = new Map(process.stages.map((stage) => [stage.id, stage]));
-    const resources = new Map<string, Resource>(process.resources.map((resource) => [resource.id, { ...resource, busy: 0, busySeconds: 0, blockedCustomerSeconds: 0, occupied: new Set<number>() }]));
+    const resources = new Map<string, Resource>(process.resources.map((resource) => [resource.id, { ...resource, busy: 0, busySeconds: 0, blockedCustomerSeconds: 0, blockedOrderSeconds: 0, occupied: new Set<number>() }]));
     const calendar = new MinHeap<Event>((a, b) => a.time - b.time || PRIORITY[a.kind] - PRIORITY[b.kind] || a.sequence - b.sequence);
     let sequence = 0, partyId = 0, requestId = 0, now = 0;
     let pending: CustomerParty[] = [];
     const arrived: CustomerParty[] = [];
     const servedByHour = new Map<number, number>();
-    for (let hour = firstHour; hour < lastHour; hour++) servedByHour.set(hour, 0);
+    const deliveryByCompletionHour = new Map<number, number>();
+    for (let hour = firstHour; hour < lastHour; hour++) { servedByHour.set(hour, 0); deliveryByCompletionHour.set(hour, 0); }
     const schedule = (kind: Event["kind"], time: number, party: CustomerParty) => {
       if (!Number.isFinite(time)) fail("event.time", "duration overflow");
       calendar.push({ kind, time, sequence: sequence++, party, requestId: party.requestId });
@@ -86,10 +100,36 @@ export class DiscreteEventSimulationEngine implements SimulationEngine {
         let accumulated = 0;
         const size = sizes.find((item) => { accumulated += item.probability; return draw < accumulated; })?.size ?? sizes.find((item) => item.probability > 0)!.size;
         if (absolute < start || absolute >= start + horizon || !windows.some((window) => absolute >= window.startMinute * 60 && absolute < window.endMinute * 60)) continue;
-        const party: CustomerParty = { id: partyId++, size, arrivedAt: absolute - start, waitSeconds: 0, stageId: process.startStageId, state: "waiting", requestedAt: absolute - start, requestId: -1, held: [] };
+        const party: CustomerParty = { id: partyId++, size, arrivedAt: absolute - start, waitSeconds: 0, stageId: dineInStream.startStageId, state: "waiting", requestedAt: absolute - start, requestId: -1, held: [],
+          channel: "dine-in", streamId: dineInStream.id, startStageId: dineInStream.startStageId, foodWaitSeconds: 0, kitchenWaitSeconds: 0 };
         schedule("arrival", party.arrivedAt, party);
       }
       if (bucket.distribution === "deterministic") deterministicIntensity += partyRate;
+    }
+
+    // Independent orders/hour stream. Never consumes the legacy party-size or arrival RNG.
+    // Both streams enter the same event calendar and request the same physical resource pools.
+    let deliveryId = 0, deliveryIntensity = 0, nextDeliveryArrival = 0.5;
+    if (deliveryStream) for (let hour = firstHour; hour < lastHour; hour++) {
+      const bucket = deliveryByHour.get(hour);
+      if (!bucket || bucket.expectedOrdersPerHour === 0) continue;
+      const orderRate = bucket.expectedOrdersPerHour;
+      if (orderRate > MAX_PARTIES) fail("demand.deliveryBuckets", `per-hour order rate exceeds the ${MAX_PARTIES} execution guard`);
+      const interval = 3600 / orderRate;
+      const arrivalsRandom = randomStream(config.seed, `arrivals:delivery:${deliveryStream.id}:${hour}`);
+      const spacing = () => bucket.distribution === "poisson" ? -Math.log(arrivalsRandom()) * interval : interval;
+      let offset = bucket.distribution === "poisson" ? spacing() : (nextDeliveryArrival - deliveryIntensity) * interval;
+      for (; offset < 3600; offset += spacing()) {
+        if (bucket.distribution === "deterministic") nextDeliveryArrival++;
+        if (++candidateCount > MAX_PARTIES) fail("demand", `combined candidate arrivals exceed the ${MAX_PARTIES} execution guard; shorten the run`);
+        const absolute = hour * 3600 + offset;
+        if (absolute < start || absolute >= start + horizon || !windows.some(window => absolute >= window.startMinute * 60 && absolute < window.endMinute * 60)) continue;
+        const order: CustomerParty = { id: deliveryId++, size: 1, arrivedAt: absolute - start, waitSeconds: 0,
+          stageId: deliveryStream.startStageId, state: "waiting", requestedAt: absolute - start, requestId: -1, held: [],
+          channel: "delivery", streamId: deliveryStream.id, startStageId: deliveryStream.startStageId, foodWaitSeconds: 0, kitchenWaitSeconds: 0 };
+        schedule("arrival", order.arrivedAt, order);
+      }
+      if (bucket.distribution === "deterministic") deliveryIntensity += orderRate;
     }
 
     function select(party: CustomerParty, requirement: Requirement): Allocation | null {
@@ -112,7 +152,11 @@ export class DiscreteEventSimulationEngine implements SimulationEngine {
       for (const resource of resources.values()) resource.busySeconds += elapsed * resource.busy;
       for (const party of pending) {
         for (const requirement of stages.get(party.stageId)!.requirements) {
-          if (!select(party, requirement)) resources.get(requirement.resourceId)!.blockedCustomerSeconds += elapsed * party.size;
+          if (!select(party, requirement)) {
+            const resource = resources.get(requirement.resourceId)!;
+            if (party.channel === "dine-in") resource.blockedCustomerSeconds += elapsed * party.size;
+            else resource.blockedOrderSeconds += elapsed;
+          }
         }
       }
       now = time;
@@ -133,6 +177,12 @@ export class DiscreteEventSimulationEngine implements SimulationEngine {
       const stage = stages.get(stageId)!;
       if (stage.queue) schedule("timeout", now + stage.queue.maxWaitSeconds, party);
     }
+    function recordWait(party: CustomerParty, seconds: number) {
+      party.waitSeconds += seconds;
+      const metric = stages.get(party.stageId)!.queueMetric;
+      if (metric === "food-wait") party.foodWaitSeconds += seconds;
+      if (metric === "kitchen-wait") party.kitchenWaitSeconds += seconds;
+    }
     function dispatch() {
       const blocked = new Set<string>();
       const remaining: CustomerParty[] = [];
@@ -151,26 +201,26 @@ export class DiscreteEventSimulationEngine implements SimulationEngine {
           allocation.members.forEach((member) => resource.occupied.add(member));
           party.held.push(allocation);
         }
-        party.waitSeconds += now - party.requestedAt;
+        recordWait(party, now - party.requestedAt);
         party.state = "active";
         const duration = stage.duration.kind === "constant" ? stage.duration.seconds :
-          -Math.log(randomStream(config.seed, `service:${party.id}:${stage.id}`)()) * stage.duration.meanSeconds;
+          -Math.log(randomStream(config.seed, party.channel === "dine-in" ? `service:${party.id}:${stage.id}` : `service:delivery:${party.streamId}:${party.id}:${stage.id}`)()) * stage.duration.meanSeconds;
         schedule("completion", now + duration, party);
       }
       pending = remaining;
     }
     let event: Event | undefined;
-    let completedSystemSeconds = 0;
+    let completedSystemSeconds = 0, completedDeliverySystemSeconds = 0;
     while ((event = calendar.pop())) {
       if (event.time > horizon) break;
       const { party } = event;
       if (event.kind === "timeout" && (party.state !== "waiting" || event.requestId !== party.requestId)) continue;
       advance(event.time);
       if (event.kind === "arrival") {
-        arrived.push(party); request(party, process.startStageId);
+        arrived.push(party); request(party, party.startStageId);
       } else if (event.kind === "timeout") {
         pending = pending.filter((waiting) => waiting !== party);
-        party.waitSeconds += now - party.requestedAt;
+        recordWait(party, now - party.requestedAt);
         request(party, stages.get(party.stageId)!.queue!.timeoutStageId);
       } else {
         const stage = stages.get(party.stageId)!;
@@ -178,20 +228,29 @@ export class DiscreteEventSimulationEngine implements SimulationEngine {
         if (stage.outcome) {
           party.state = stage.outcome;
           if (stage.outcome === "served") {
-            completedSystemSeconds += party.size * (now - party.arrivedAt);
             // Completions exactly at the horizon belong to the last observed hour.
             const hour = Math.min(lastHour - 1, Math.floor((start + now) / 3600));
-            servedByHour.set(hour, (servedByHour.get(hour) ?? 0) + party.size);
+            if (party.channel === "dine-in") {
+              completedSystemSeconds += party.size * (now - party.arrivedAt);
+              servedByHour.set(hour, (servedByHour.get(hour) ?? 0) + party.size);
+            } else {
+              completedDeliverySystemSeconds += now - party.arrivedAt;
+              deliveryByCompletionHour.set(hour, (deliveryByCompletionHour.get(hour) ?? 0) + 1);
+            }
           }
         } else request(party, stage.nextStageId!);
       }
       dispatch();
     }
     advance(horizon);
-    pending.forEach((party) => { party.waitSeconds += horizon - party.requestedAt; });
-    const customersArrived = arrived.reduce((sum, party) => sum + party.size, 0);
-    const customersServed = arrived.filter((party) => party.state === "served").reduce((sum, party) => sum + party.size, 0);
-    const customersLost = arrived.filter((party) => party.state === "lost").reduce((sum, party) => sum + party.size, 0);
+    pending.forEach((party) => { recordWait(party, horizon - party.requestedAt); });
+    const dineIn = arrived.filter(party => party.channel === "dine-in");
+    const delivery = arrived.filter(party => party.channel === "delivery");
+    const customersArrived = dineIn.reduce((sum, party) => sum + party.size, 0);
+    const customersServed = dineIn.filter((party) => party.state === "served").reduce((sum, party) => sum + party.size, 0);
+    const customersLost = dineIn.filter((party) => party.state === "lost").reduce((sum, party) => sum + party.size, 0);
+    const ordersCompleted = delivery.filter(order => order.state === "served").length;
+    const ordersLost = delivery.filter(order => order.state === "lost").length;
     if (!Number.isSafeInteger(customersArrived)) fail("customersArrived", "customer count exceeds safe integer range");
     const resourceUtilization = [...resources.values()].map((resource) => ({ resourceId: resource.id, capacityUnits: resource.capacityUnits, utilization: utilizationRatio(resource.busySeconds, resource.capacityUnits * horizon) }));
     const utilization = (category: string) => {
@@ -207,23 +266,38 @@ export class DiscreteEventSimulationEngine implements SimulationEngine {
       { id: "des-seed", description: "Deterministic keyed PRNG streams; one independent seeded replication per run", value: config.seed, unit: "uint32", source: "generic-des/1.0.0" },
       { id: "des-admission-timeout", description: "Initial stage queue timeout; later queues follow injected process", value: stages.get(process.startStageId)!.queue?.maxWaitSeconds ?? null, unit: "seconds", source: "operation-process" },
       { id: "des-finance", description: "Revenue fields are compatibility placeholders; no financial model executed", value: "not-modeled", unit: "status", source: "generic-des/1.0.0" },
-      { id: "des-delivery", description: "Arrival stream represents dine-in customers; excluded delivery demand adds no kitchen workload in this version", value: "dine-in only", unit: "scope", source: "demand contract" },
+      demand.deliveryBuckets !== undefined
+        ? { id: "des-delivery", description: "Independent orders use declared delivery stages and the same resource pools/FIFO/calendar as dine-in. One order is one job, never one customer; no rider/transport model. Cooking and packaging resource claims are declared by the operation model.", value: "independent orders + shared kitchen", unit: "separate customers/hour and orders/hour", source: "demand/process contracts" }
+        : { id: "des-delivery", description: "Legacy arrival stream represents dine-in customers; excluded delivery customer shares add no kitchen workload without explicit independent delivery order buckets", value: "dine-in only", unit: "scope", source: "demand contract" },
+      { id: "des-channel-waiting", description: "Food/kitchen waiting counts only elapsed queue time at stages tagged by the operation model, excludes cooking/serving/packaging duration, and includes censored waits at horizon. Dine-in averages are customer-weighted; delivery averages are per arrived order.", value: { dineInMetric: "food-wait", deliveryMetric: "kitchen-wait" }, unit: "seconds", source: "operation-process.queueMetric" },
     ];
-    const maxWaitingSeconds = arrived.reduce((max, party) => Math.max(max, party.waitSeconds), 0);
+    const maxWaitingSeconds = dineIn.reduce((max, party) => Math.max(max, party.waitSeconds), 0);
+    const maxFoodWaiting = dineIn.reduce((max, party) => Math.max(max, party.foodWaitSeconds), 0);
+    const maxDeliveryWaiting = delivery.reduce((max, order) => Math.max(max, order.kitchenWaitSeconds), 0);
     return {
       runId, customersArrived, customersServed, customersLost,
       customersUnfinished: customersArrived - customersServed - customersLost,
-      averageWaitingSeconds: Math.min(maxWaitingSeconds, ratio(arrived.reduce((sum, party) => sum + party.waitSeconds * party.size, 0), customersArrived)),
+      averageWaitingSeconds: Math.min(maxWaitingSeconds, ratio(dineIn.reduce((sum, party) => sum + party.waitSeconds * party.size, 0), customersArrived)),
       maxWaitingSeconds,
+      averageDineInFoodWaitingSeconds: Math.min(maxFoodWaiting, ratio(dineIn.reduce((sum, party) => sum + party.foodWaitSeconds * party.size, 0), customersArrived)),
+      maxDineInFoodWaitingSeconds: maxFoodWaiting,
       throughputCustomersPerHour: customersServed * 3600 / horizon,
       tableUtilization: utilization("table"), kitchenUtilization: utilization("kitchen"), staffUtilization: utilization("staff"),
       resourceUtilization,
       averageCustomerTimeInSystemSeconds: ratio(completedSystemSeconds, customersServed),
       hourlyThroughput: [...servedByHour].map(([hour, count]) => ({ hour, customersServed: count })),
+      ...(demand.deliveryBuckets !== undefined || deliveryStream ? { delivery: {
+        ordersArrived: delivery.length, ordersCompleted, ordersLost, ordersUnfinished: delivery.length - ordersCompleted - ordersLost,
+        throughputOrdersPerHour: ordersCompleted * 3600 / horizon,
+        averageKitchenWaitingSeconds: Math.min(maxDeliveryWaiting, ratio(delivery.reduce((sum, order) => sum + order.kitchenWaitSeconds, 0), delivery.length)),
+        maxKitchenWaitingSeconds: maxDeliveryWaiting,
+        averageTimeInSystemSeconds: ratio(completedDeliverySystemSeconds, ordersCompleted),
+        hourlyThroughput: [...deliveryByCompletionHour].map(([hour, count]) => ({ hour, ordersCompleted: count })),
+      } } : {}),
       revenue: 0, revenueStatus: "not-modeled", currency: operation.currency, revenueByHour: [],
-      bottlenecks: [...resources.values()].filter((resource) => resource.blockedCustomerSeconds > 0)
-        .sort((a, b) => b.blockedCustomerSeconds - a.blockedCustomerSeconds || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
-        .map((resource) => ({ resource: resource.id, description: `Insufficient available capacity caused ${resource.blockedCustomerSeconds.toFixed(2)} customer-seconds of blocked queue time; observed blocking is not causal bottleneck attribution and multiple resources may block the same wait.` })),
+      bottlenecks: [...resources.values()].filter((resource) => resource.blockedCustomerSeconds > 0 || resource.blockedOrderSeconds > 0)
+        .sort((a, b) => b.blockedCustomerSeconds - a.blockedCustomerSeconds || b.blockedOrderSeconds - a.blockedOrderSeconds || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+        .map((resource) => ({ resource: resource.id, description: `Insufficient available capacity caused ${resource.blockedCustomerSeconds.toFixed(2)} customer-seconds${resource.blockedOrderSeconds ? ` and separately ${resource.blockedOrderSeconds.toFixed(2)} order-seconds` : ""} of blocked queue time; observed blocking is not causal bottleneck attribution and multiple resources may block the same wait.` })),
       assumptions,
     };
   }

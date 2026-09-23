@@ -55,6 +55,9 @@ export class TransparentDemandModel implements DemandModel {
   calculate({ market, parameters }: { market: MarketProfile; parameters: DemandParameters }): ExplainedDemandProfile {
     validateMarket(market);
     validateDemandParameters(parameters);
+    const independentDelivery = parameters.deliveryOrdersByHour !== undefined;
+    if (independentDelivery && parameters.deliveryRatio !== 0)
+      throw new DomainValidationError("demandParameters.deliveryRatio", "independent delivery orders require legacy deliveryRatio = 0; customers and orders cannot be interconverted");
     if (!market.buckets.length) throw new DomainValidationError("market.buckets", "at least one observed or explicitly demo traffic bucket is required");
     const distribution = this.options.distribution ?? "poisson";
     const buckets = market.buckets.map((bucket): ExplainedDemandBucket => {
@@ -71,8 +74,8 @@ export class TransparentDemandModel implements DemandModel {
       const hourly = parameters.hourlyMultipliers?.find((item) => item.dayType === bucket.dayType && item.hour === bucket.hour)?.multiplier ?? 1;
       const combined = finite(day * meal * weatherEvent * hourly, `${path}.combinedMultiplier`);
       const expectedAllChannelCustomersPerHour = finite(selectedStoreDemand * parameters.visitConversionRate * combined, `${path}.expectedCustomersPerHour`);
-      const expectedDeliveryCustomersPerHour = expectedAllChannelCustomersPerHour * parameters.deliveryRatio;
-      const expectedCustomersPerHour = expectedAllChannelCustomersPerHour * (1 - parameters.deliveryRatio);
+      const expectedDeliveryCustomersPerHour = independentDelivery ? 0 : expectedAllChannelCustomersPerHour * parameters.deliveryRatio;
+      const expectedCustomersPerHour = independentDelivery ? expectedAllChannelCustomersPerHour : expectedAllChannelCustomersPerHour * (1 - parameters.deliveryRatio);
       return {
         dayType: bucket.dayType, hour: bucket.hour,
         timeBucket: { startMinute: bucket.hour * 60, endMinute: (bucket.hour + 1) * 60, durationHours: 1 },
@@ -98,18 +101,24 @@ export class TransparentDemandModel implements DemandModel {
         parametersContentKey: demandParametersContentKey(parameters),
       },
       buckets,
+      ...(independentDelivery ? { deliveryBuckets: structuredClone(parameters.deliveryOrdersByHour!) } : {}),
       assumptions: [
         assumption("interpretation", "Conditional scenario expectations, not a guaranteed future forecast or measured customer count. Defaults need local calibration.", "scenario-not-forecast", "interpretation"),
-        assumption("formula", "One-hour traffic is converted to customer demand before allocating delivery and dine-in channels.", "footTrafficPersons * categoryParticipationRate * brandShare * visitConversionRate * dayMultiplier * mealMultiplier * weatherEventMultiplier * hourlyMultiplier; dineIn = total * (1 - deliveryRatio)", "customers/hour"),
+        independentDelivery
+          ? assumption("formula", "One-hour traffic is converted to dine-in customers; delivery orders are specified independently and never subtracted from this rate.", "dineIn = footTrafficPersons * categoryParticipationRate * brandShare * visitConversionRate * dayMultiplier * mealMultiplier * weatherEventMultiplier * hourlyMultiplier", "customers/hour")
+          : assumption("formula", "One-hour traffic is converted to customer demand before allocating delivery and dine-in channels.", "footTrafficPersons * categoryParticipationRate * brandShare * visitConversionRate * dayMultiplier * mealMultiplier * weatherEventMultiplier * hourlyMultiplier; dineIn = total * (1 - deliveryRatio)", "customers/hour"),
         assumption("trafficBasis", "Use only hourly passers-by; resident/living population is not added, substituted, or assumed to be store customers. Missing traffic fails explicitly.", "footTrafficPersons", "persons/hour"),
         assumption("timeBuckets", "Each source bucket is a representative local one-hour interval; observation-period duration does not scale arrivals. Only supplied hours are returned; missing hours are not inferred as zero.", "[hour:00, next-hour:00)", "local hour"),
         assumption("mealWindows", "Lunch and dinner windows are half-open and do not overlap.", { lunchStartHour: 11, lunchEndHour: 14, dinnerStartHour: 17, dinnerEndHour: 21 }, "local hour"),
         assumption("holidayRule", "Holiday buckets use the weekend multiplier unless an explicit hourly multiplier further adjusts them.", "weekendMultiplier", "rule"),
         assumption("multipliers", "Scenario adjustments multiply observed patterns; neutral defaults avoid adding another day/meal pattern automatically. Large multipliers may exceed traffic counts and are not unique-person probabilities.", "multiplicative; no clipping", "rule"),
-        assumption("channels", "Delivery is an assumed split of converted customer demand, not a separately observed delivery market. Only dine-in customers enter the restaurant DES; delivery kitchen load and delivery fees are not simulated.", { arrivalChannel: "dine-in", excludedChannel: "delivery", deliveryRatio: parameters.deliveryRatio }, "channel allocation"),
+        independentDelivery
+          ? assumption("channels", "Dine-in demand remains customers/hour. Explicit delivery orders/hour are an independent user assumption; they neither subtract customers nor multiply by party size. Both streams can consume the same kitchen resources in an enabled operation model.", { dineIn: "customers/hour", delivery: "orders/hour", deliveryRatio: 0 }, "separate channels")
+          : assumption("channels", "Legacy mode: delivery is an assumed split of converted customer demand, not a separately observed delivery market. Only dine-in customers enter the restaurant DES; delivery kitchen load and delivery fees are not simulated without explicit independent order buckets.", { arrivalChannel: "dine-in", excludedChannel: "delivery", deliveryRatio: parameters.deliveryRatio }, "channel allocation"),
         assumption("arrivalDistribution", "Hourly rates describe individual customers, not parties. Poisson means an independent piecewise-constant customer intensity; deterministic is a scenario alternative. The simulation owns actual arrival sampling and party formation.", distribution, "distribution"),
         assumption("marketSource", "Preserve exact source classification, period and upstream assumptions without claiming observed customer arrivals.", JSON.parse(canonicalJson({ provider: market.provider, provenance: market.provenance, period: market.period, assumptions: market.assumptions })) as JsonValue, "provenance"),
         ...parameterAssumptions,
+        ...(independentDelivery ? [assumption("parameter.deliveryOrdersByHour", "Explicit independent delivery order arrival assumptions; only supplied hours are returned, with no conversion from people or inference of missing hours.", JSON.parse(canonicalJson(parameters.deliveryOrdersByHour)) as JsonValue, "orders/hour")] : []),
       ],
     };
     validateDemand(profile);

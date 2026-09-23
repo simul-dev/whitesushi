@@ -62,7 +62,9 @@ export class RestaurantOperationModel implements OperationModel {
       { ...held("seats"), unitsPerCustomer: true },
     ], "ordering");
     seating.queue = queueWait === null ? null : { maxWaitSeconds: queueWait, timeoutStageId: "lost" };
-    return {
+    const cooking = stage("cooking", policy.durations.cookingSeconds, [transient("kitchen"), transient("cooks")], "serving");
+    cooking.queueMetric = "food-wait";
+    const process: OperationProcess = {
       schemaVersion: 1, model: { ...this.descriptor }, startStageId: "seating",
       partySizeDistribution: structuredClone(policy.partySizeDistribution ?? [{ size: 1, probability: 1 }]),
       resources: [
@@ -76,7 +78,7 @@ export class RestaurantOperationModel implements OperationModel {
       stages: [
         seating,
         stage("ordering", policy.durations.orderingSeconds, [transient("servers")], "cooking"),
-        stage("cooking", policy.durations.cookingSeconds, [transient("kitchen"), transient("cooks")], "serving"),
+        cooking,
         stage("serving", policy.durations.servingSeconds, [transient("servers")], "dining"),
         stage("dining", policy.durations.diningSeconds, [], "payment"),
         stage("payment", policy.durations.paymentSeconds, [transient("cashiers")], "cleaning"),
@@ -85,6 +87,24 @@ export class RestaurantOperationModel implements OperationModel {
         { ...stage("lost", 0, [], null), outcome: "lost" },
       ],
     };
+    if (policy.delivery) {
+      const deliveryCooking = stage("delivery-cooking", policy.durations.cookingSeconds, [transient("kitchen"), transient("cooks")], "delivery-packaging");
+      deliveryCooking.queueMetric = "kitchen-wait";
+      deliveryCooking.queue = policy.delivery.maxQueueWaitSeconds === null ? null : {
+        maxWaitSeconds: policy.delivery.maxQueueWaitSeconds, timeoutStageId: "delivery-lost",
+      };
+      process.arrivalStreams = [
+        { id: "dine-in", channel: "dine-in", startStageId: process.startStageId },
+        { id: "delivery", channel: "delivery", startStageId: deliveryCooking.id },
+      ];
+      process.stages.push(
+        deliveryCooking,
+        stage("delivery-packaging", policy.delivery.packagingSeconds, [transient("cooks")], "delivery-complete"),
+        { ...stage("delivery-complete", 0, [], null), outcome: "served" },
+        { ...stage("delivery-lost", 0, [], null), outcome: "lost" },
+      );
+    }
+    return process;
   }
 }
 

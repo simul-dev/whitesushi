@@ -28,8 +28,17 @@ export function validateOperationProcess(process: OperationProcess): void {
   if (Math.abs(sizes.reduce((sum, item) => sum + item.probability, 0) - 1) > 1e-9) invalid("partySizeDistribution", "probabilities must sum to one");
   const stages = new Map(process.stages.map((stage) => [stage.id, stage]));
   if (!stages.size || stages.size !== process.stages.length || !stages.has(process.startStageId)) invalid("stages", "missing start or duplicate stages");
+  const streams = process.arrivalStreams ?? [{ id: "dine-in", channel: "dine-in", startStageId: process.startStageId }];
+  if (!streams.length || new Set(streams.map(stream => stream.id)).size !== streams.length || new Set(streams.map(stream => stream.channel)).size !== streams.length)
+    invalid("arrivalStreams", "requires unique nonempty streams and one stream per demand channel");
+  if (!streams.some(stream => stream.channel === "dine-in")) invalid("arrivalStreams", "requires a dine-in customer stream");
+  for (const stream of streams) {
+    if (!stream.id.trim() || !["dine-in", "delivery"].includes(stream.channel) || !stages.has(stream.startStageId))
+      invalid("arrivalStreams", "unknown channel or missing stream start stage");
+  }
   for (const stage of process.stages) {
     if (!stage.id.trim()) invalid("stage.id", "required");
+    if (stage.queueMetric !== undefined && !["food-wait", "kitchen-wait"].includes(stage.queueMetric)) invalid("queueMetric", "unknown metric");
     if (stage.duration.kind === "constant") duration(stage.duration.seconds, "duration");
     else if (stage.duration.kind === "exponential") duration(stage.duration.meanSeconds, "duration", true);
     else invalid("duration", "unsupported distribution");
@@ -64,7 +73,7 @@ export function validateOperationProcess(process: OperationProcess): void {
   // Propagate held resources through the DAG. A repeated process-long acquisition would leak capacity.
   const heldOnEntry = new Map<string, Set<string>>();
   const order = [...done].reverse();
-  heldOnEntry.set(process.startStageId, new Set());
+  streams.forEach(stream => heldOnEntry.set(stream.startStageId, new Set()));
   for (const id of order) {
     const held = heldOnEntry.get(id);
     if (!held) continue;
