@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import source from "../floorplan.json";
+import source from "../../../floorplan.json";
 import { patchEntity, validatePlan } from "./model";
 describe("review document invariants", () => {
   it("loads the real plan, preserves zero-height zones and dimension references", () => {

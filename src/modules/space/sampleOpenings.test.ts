@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import data from "../floorplan.json";
+import data from "../../../floorplan.json";
 import { getWallSegments, type WallSegment } from "./wallGeometry";
 import { validatePlan } from "./model";
 import { buildPlanModel, disposeObject } from "./scene";

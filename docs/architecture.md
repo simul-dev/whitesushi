@@ -32,4 +32,18 @@ Application / Project / Scenario
 - 과거 결과를 새 입력의 결과처럼 사용하지 않도록 변경 후 재실행 여부를 판별한다.
 - Space의 순수 API와 브라우저 UI/PDF/WebGL 진입점을 구분한다.
 
-구체적인 공개 API, 파일 구조와 병렬 개발 계약은 Phase 1~2 구현 결과에 맞춰 아래에 기록한다.
+## Space 경계 (Phase 1)
+
+기존 `App.tsx`는 `src/modules/space/SpaceWorkspace.tsx`로 이동했다. 최상위 App은 UI 공개 진입점을 통해 이 워크스페이스를 조합한다. PDF, 편집기, 형상, 내보내기와 기존 단위 테스트도 Space 내부로 이동했고 CSS 및 FloorPlan 원본은 유지했다.
+
+| 진입점 | 책임 | 사용처 |
+|---|---|---|
+| `modules/space/index.ts` | FloorPlan 타입, 검증, 편집, 순수 벽 형상 함수 | 데이터 서비스·테스트 |
+| `modules/space/ui.ts` | SpaceWorkspace, props | 브라우저 App |
+| `modules/space/sample.ts` | 명시적 샘플 생성 | 기존 앱 초기값·테스트 |
+| `modules/space/pdfImport.ts` | PDF worker, render/calibration | 브라우저 import |
+| `modules/space/exports.ts` | WebGL/GLTF/이미지 출력 | 승인된 export |
+
+`initialPlan`은 마운트 시 검증·복제한다. `onPlanChange`는 초기 문서 및 편집/undo/import 후 분리된 사본을 알린다. 부모가 이 사본을 수정해도 편집기 상태를 손상시키지 않는다. 다른 문서를 열 때 React `key`를 바꿔 선택·검토·히스토리를 초기화한다. 단순한 단계 이동은 편집기를 유지해야 한다. 전체 Wizard는 Phase 8 범위다.
+
+공통 도메인 및 병렬 개발 계약은 Phase 2 결과에 맞춰 이어서 기록한다.

@@ -15,7 +15,7 @@ import {
   type Point,
 } from "./types";
 import { getWallSegments } from "./wallGeometry";
-import { resolveOverlayUrl } from "./assets";
+import { resolveOverlayUrl } from "../../assets";
 interface Props {
   plan: FloorPlan;
   selectedId: string | null;

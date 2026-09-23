@@ -5,7 +5,7 @@
 | Phase | 범위 | 완료 조건 | 상태 |
 |---|---|---|---|
 | 0 | 현황 감사·기준선 | 기존 unit/build/browser 검증, 감사 문서 | 완료: 37 unit / 6 E2E / build |
-| 1 | Space 모듈 추출 | 동일 UI·동작·원본 데이터, 독립 공개 API, 회귀 통과 | 진행 예정 |
+| 1 | Space 모듈 추출 | 동일 UI·동작·원본 데이터, 독립 공개 API, 회귀 통과 | 완료: 39 unit / 7 E2E / build |
 | 2 | Core / Project / Scenario / ports | 순수 계약, 안전한 override, 실행 추적·무효화, 어댑터, 테스트 | 진행 예정 |
 | 3 | Market Intelligence | 실제/demo 출처 표시, 교체 가능한 provider | 후속 |
 | 4 | Demand Model | 유동인구 → 도착률, 가정 편집 | 후속 |
@@ -25,3 +25,7 @@
 ## 이후 병렬 개발 준비
 
 Phase 2의 public contracts를 기준으로 Market provider, Demand model, Operation/Simulation engine을 독립 개발한다. 서로의 React 컴포넌트나 내부 파일을 import하지 않는다. Phase 2 종료 시 담당 경계, 입력·출력, 검증 fixture, 미구현 부분을 architecture 문서에 명시한다.
+
+## Phase 1 실행 기록
+
+2026-09-23: 단위 테스트 39개, Chrome E2E 7개(50.4초), production build 성공. 기존 6개 E2E는 변경 없이 통과했고 문서 사본/세션 격리 1개를 추가했다. Phase 0 출력과 비교했을 때 2D overview PNG, 6개 내보낸 PNG, GLB, GLTF 모두 **바이트 단위로 동일**했다. PDF·JSON 원본과 CSS는 변경하지 않았다.

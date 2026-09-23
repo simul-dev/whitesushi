@@ -78,14 +78,17 @@ JSON은 mm, GLB/GLTF는 glTF 표준에 따라 **m**입니다. 좌표 변환은 J
 
 ```text
 floorplan.json              기준 도면 데이터
-src/types.ts                FloorPlan / Entity 계약
-src/pdfImport.ts             PDF.js 렌더·보정
-src/pdfGeometry.ts           벡터 선과 벽 후보
-src/model.ts                 검증·편집·출처
-src/PlanEditor.tsx           SVG 편집기
-src/scene.ts                 절차적 형상·개구부·카메라
-src/Preview3D.tsx            Three.js / OrbitControls
-src/exports.ts              GLB/GLTF/PNG/ZIP
+src/App.tsx                 애플리케이션 조합
+src/modules/space/index.ts  순수 데이터 공개 API
+src/modules/space/ui.ts     SpaceWorkspace UI 공개 API
+src/modules/space/types.ts  FloorPlan / Entity 계약
+src/modules/space/pdfImport.ts  PDF.js 렌더·보정
+src/modules/space/pdfGeometry.ts 벡터 선과 벽 후보
+src/modules/space/model.ts  검증·편집·출처
+src/modules/space/PlanEditor.tsx SVG 편집기
+src/modules/space/scene.ts  절차적 형상·개구부·카메라
+src/modules/space/Preview3D.tsx Three.js / OrbitControls
+src/modules/space/exports.ts GLB/GLTF/PNG/ZIP
 docs/floorplan-analysis.md   실제 PDF 분석
 assumptions.md               가정과 한계
 docs/validation.md           검증 기록
