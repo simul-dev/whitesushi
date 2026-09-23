@@ -109,6 +109,11 @@
 .simulator .product-site-lead { color: var(--product-muted); font-size: 14px; line-height: 1.85; }
 .simulator .product-site-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.04fr); gap: clamp(40px, 6vw, 86px); align-items: start; }
 .simulator .product-site-form { padding-top: 22px; border-top: 1px solid var(--product-line); }
+.simulator .product-tester-sample { margin-bottom: 28px; padding: 0 0 24px; border-bottom: 1px solid var(--product-line); }
+.simulator .product-tester-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+.simulator .product-tester-heading > p { display: flex; align-items: center; gap: 7px; color: var(--product-green); font-size: 11px; }
+.simulator .product-tester-source { color: var(--product-muted); font-size: 11px; line-height: 1.8; }
+.simulator .product-tester-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin-top: 15px; }
 .simulator .product-site-continue { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; margin-top: 28px; }
 .simulator .product-site-continue p { font-size: 10px; color: var(--product-muted); }
 .simulator .product-site-plan { min-width: 0; margin-top: -224px; }

@@ -7,13 +7,18 @@ import { discreteEventSimulationEngine } from "../modules/simulation";
 import { runOneWaySensitivity, runScenarioReplications, type ScenarioEvaluation, type SensitivityResult, type ParameterDescriptor } from "../modules/scenario";
 import { compareStoreScenarios, createComparisonScenarios, type ScenarioComparison } from "./scenarioAnalysis";
 import type { CustomScenarioInputs, SensitivityChoice } from "./workflow";
+import { prepareTesterSample, type TesterSampleInput } from "./testerSample";
 
 export type WorkflowAnalysisRequest =
+  | { kind: "sample"; input: TesterSampleInput }
   | { kind: "operation"; project: Project; now: string }
   | { kind: "comparison"; project: Project; custom: CustomScenarioInputs; now: string }
   | { kind: "sensitivity"; project: Project; parameter: SensitivityChoice; now: string }
   | { kind: "financial"; runs: SimulationRun[]; assumption: FinancialAssumption };
 export type WorkflowAnalysisResult =
+  | { kind: "sample"; prepared: Awaited<ReturnType<typeof prepareTesterSample>>;
+      evaluation: ScenarioEvaluation<FinancialAnalysisResult>; frames: SimulationFrame[];
+      comparison: ScenarioComparison<FinancialAnalysisResult>; sensitivity: SensitivityResult<FinancialAnalysisResult>; financial: FinancialAnalysisResult }
   | { kind: "operation"; evaluation: ScenarioEvaluation<FinancialAnalysisResult>; frames: SimulationFrame[] }
   | { kind: "comparison"; comparison: ScenarioComparison<FinancialAnalysisResult> }
   | { kind: "sensitivity"; sensitivity: SensitivityResult<FinancialAnalysisResult> }
@@ -28,6 +33,19 @@ const modules = {
 
 /** Same pure engines as the headless API, executed in a worker by the product. */
 export async function executeWorkflowAnalysis(request: WorkflowAnalysisRequest): Promise<WorkflowAnalysisResult> {
+  if (request.kind === "sample") {
+    const prepared = await prepareTesterSample(request.input);
+    const { now, session, custom } = prepared;
+    const operation = await executeWorkflowAnalysis({ kind: "operation", project: session.project, now });
+    if (operation.kind !== "operation" || !operation.evaluation.ok) throw new Error("샘플 가상영업을 준비하지 못했습니다.");
+    const comparison = await executeWorkflowAnalysis({ kind: "comparison", project: session.project, custom, now });
+    if (comparison.kind !== "comparison" || !comparison.comparison.ok) throw new Error("샘플 시나리오 비교를 준비하지 못했습니다.");
+    const sensitivity = await executeWorkflowAnalysis({ kind: "sensitivity", project: session.project, parameter: prepared.sensitivity, now });
+    if (sensitivity.kind !== "sensitivity" || !sensitivity.sensitivity.results.every(point => point.evaluation.ok)) throw new Error("샘플 민감도를 준비하지 못했습니다.");
+    const financial = modules.financialEngine.calculate({ simulationRuns: operation.evaluation.runs, assumption: prepared.configuration.financial });
+    return { kind: "sample", prepared, evaluation: operation.evaluation, frames: operation.frames,
+      comparison: comparison.comparison, sensitivity: sensitivity.sensitivity, financial };
+  }
   if (request.kind === "financial") return { kind: "financial", financial: modules.financialEngine.calculate({ simulationRuns: request.runs, assumption: request.assumption }) };
   const config = request.project.base.simulation;
   if (!config) throw new Error("가상영업 시간을 먼저 설정해 주세요.");

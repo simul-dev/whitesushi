@@ -13,6 +13,8 @@ export function ReviewStep({ candidate, layout, market, operation, financial, co
   const successful = comparison?.rows.filter(row => row.evaluation.ok) ?? [];
   const financials = successful.flatMap(row => row.evaluation.ok && row.evaluation.financial ? [row.evaluation.financial] : []);
   const attention: string[] = [];
+  if (candidate.knownAreaM2 !== null && layout && Math.abs(candidate.knownAreaM2 - layout.totalAreaM2) > 0.1)
+    attention.push(`사용자 입력 면적 ${formatNumber(candidate.knownAreaM2, 2)} m²와 도면 면적 ${formatNumber(layout.totalAreaM2, 1)} m²가 다릅니다. 운영 결과는 연결된 도면의 배치와 정원을 사용하므로 실제 후보지 도면으로 확인해야 합니다.`);
   if (market?.provenance.kind === "demo") attention.push("상권은 Demo 자료입니다. 실제 후보지의 유동인구와 경쟁점 자료로 바꾸기 전에는 지역 수요를 판단할 수 없습니다.");
   if (metrics && metrics.customersLost.mean > 0) attention.push(`평균 ${formatNumber(metrics.customersLost.mean)}명의 홀 고객이 관측 중 이탈했습니다. 대기 한도와 인력·테이블·주방 조건을 함께 검토하세요.`);
   if (metrics && metrics.customersUnfinished.mean > 0) attention.push(`관측 종료 시 평균 ${formatNumber(metrics.customersUnfinished.mean)}명의 홀 고객이 미완료 상태입니다. 완료 고객만 매출에 반영했습니다.`);
@@ -26,7 +28,8 @@ export function ReviewStep({ candidate, layout, market, operation, financial, co
   return <div className="analysis-page analysis-review"><StepHeading number="08" title="판단에 필요한 근거를 한곳에." description="공간, 수요, 운영과 비용을 연결한 이번 검토의 요약입니다." action={onExport && <button className="analysis-button analysis-button-secondary" onClick={onExport} disabled={stale || !evaluation || !financial || !comparison?.ok}>검토 결과 저장</button>} />
     {stale && <p className="analysis-notice analysis-notice-warning" role="status">조건이 바뀐 뒤 다시 계산하지 않은 결과가 있습니다. 가상영업·시나리오·수익성을 갱신한 후 검토 결과를 저장하세요.</p>}
     {evaluation && (!financial || !comparison?.ok) && <p className="analysis-note">시나리오 비교와 수익성 계산을 모두 완료하면 검토 결과를 저장할 수 있습니다.</p>}
-    <section className="analysis-review-site"><div><span className="analysis-eyebrow">CANDIDATE SITE</span><h2>{candidate.projectName || "후보 점포"}</h2><p>{candidate.brandName || "브랜드 미입력"} · {candidate.address || "주소 미입력"}</p></div><dl><div><dt>면적</dt><dd>{formatNumber(layout?.totalAreaM2 ?? candidate.knownAreaM2)} m²</dd></div><div><dt>확정 운영 정원</dt><dd>{formatNumber(layout?.confirmedCapacity, 0)}석</dd></div><div><dt>테이블</dt><dd>{formatNumber(layout?.tableCount, 0)}개</dd></div></dl></section>
+    <section className="analysis-review-site"><div><span className="analysis-eyebrow">CANDIDATE SITE</span><h2>{candidate.projectName || "후보 점포"}</h2><p>{candidate.brandName || "브랜드 미입력"} · {candidate.address || "주소 미입력"}</p></div><dl><div><dt>입력 면적</dt><dd>{formatNumber(candidate.knownAreaM2, 2)} m²</dd></div><div><dt>도면 면적</dt><dd>{formatNumber(layout?.totalAreaM2, 1)} m²</dd></div><div><dt>모델 운영 정원</dt><dd>{formatNumber(layout?.confirmedCapacity, 0)}석</dd></div><div><dt>테이블</dt><dd>{formatNumber(layout?.tableCount, 0)}개</dd></div></dl></section>
+    <p className="analysis-note">점포 정보와 입력 면적은 사용자 제공 값입니다. 도면 면적·정원은 연결된 도면의 모델 값이며, 기본 공개 예시 도면은 이 후보지의 실측 도면이 아닙니다. 상권·가격·비용의 예시 가정과 함께 구분해 검토하세요.</p>
     {expected && <section className="analysis-section"><div className="analysis-section-heading"><div><h2>상권 자료에서 매장 수요까지</h2><p>{source?.provenance.kind === "demo" ? "실측이 아닌 예시 상권에 방문 가정을 적용했습니다." : "실행 당시 상권 자료와 방문 가정을 기준으로 합니다."}</p></div></div>
       {peak && <p className="analysis-note">선택 요일의 상권 유동인구가 가장 큰 시간은 {peak.hour}시, {formatNumber(peak.footTrafficPersons)} 통행 명/시간입니다. 매장 방문 고객 수와 구분합니다.</p>}
       <dl className="analysis-review-facts"><div><dt>가정에 따른 홀 유입</dt><dd>{formatNumber(expected.expectedDineInCustomers)}명</dd></div><div><dt>가정에 따른 배달 주문</dt><dd>{formatNumber(expected.expectedDeliveryOrders)}건</dd></div></dl>

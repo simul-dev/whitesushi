@@ -10,6 +10,7 @@ async function step(page: Page, name: string) {
 }
 async function candidate(page: Page) {
   await page.goto("/");
+  await expect(page.getByTestId("sample-status")).toHaveAttribute("data-state", "ready", { timeout: 60000 });
   await page.getByRole("textbox", { name: "프로젝트 / 점포명" }).fill("송도 검토 후보점");
   await page.getByRole("textbox", { name: "브랜드명" }).fill("검토 브랜드");
   await page.getByRole("textbox", { name: "후보지 주소" }).fill("인천 연수구 예시 후보지");
@@ -18,9 +19,8 @@ async function candidate(page: Page) {
 }
 async function prepare(page: Page) {
   await candidate(page);
-  await page.getByRole("checkbox", { name: "출입구·주방과 테이블별 운영 정원을 확인했습니다." }).check();
-  await page.getByRole("button", { name: "공간 확인하고 상권으로" }).click();
-  await page.getByRole("button", { name: "Demo 상권 자료 불러오기" }).click();
+  await page.getByRole("button", { name: "예시 공간으로 계속" }).click();
+  await page.getByRole("button", { name: "상권 자료 다시 불러오기" }).click();
   await expect(page.getByRole("button", { name: "상권 자료 다시 불러오기" })).toBeVisible();
   await expect(page.getByRole("navigation").getByRole("button", { name: "03 상권분석, 준비됨" })).toBeVisible();
   await step(page, "04 수요가정");
@@ -29,7 +29,8 @@ async function prepare(page: Page) {
 }
 async function operation(page: Page) {
   await step(page, "05 가상영업");
-  await page.getByRole("button", { name: "가상 영업 실행", exact: true }).click();
+  await page.getByRole("button", { name: "이 조건으로 다시 실행", exact: true }).click();
+  await expect(page.getByRole("navigation").getByRole("button", { name: "05 가상영업, 준비됨" })).toBeVisible({ timeout: 30000 });
   await expect(page.getByRole("region", { name: "전체 영업 결과" })).toBeVisible({ timeout: 30000 });
 }
 async function reviewDownload(page: Page, filename: string) {
@@ -77,14 +78,17 @@ test("candidate to review uses real engines and preserves financial/operational 
 
   await step(page, "06 시나리오");
   await page.getByRole("button", { name: "4개 시나리오 비교" }).click();
+  await expect(page.getByRole("button", { name: "4개 시나리오 비교" })).toBeEnabled({ timeout: 45000 });
   await expect(page.locator(".analysis-comparison tbody tr")).toHaveCount(10, { timeout: 45000 });
   await expect(page.locator(".analysis-comparison thead th")).toHaveCount(5);
   await expect(page.locator(".analysis-failed")).toHaveCount(0);
   await page.getByRole("button", { name: "민감도 계산", exact: true }).click();
+  await expect(page.getByRole("navigation").getByRole("button", { name: "06 시나리오, 준비됨" })).toBeVisible({ timeout: 45000 });
   await expect(page.getByText("분석 변수:", { exact: false })).toBeVisible({ timeout: 45000 });
   await page.screenshot({ path: path.join(output, "06-scenario.png"), fullPage: true });
   await step(page, "07 수익성");
   await page.getByRole("button", { name: "수익성 다시 계산" }).click();
+  await expect(page.getByRole("navigation").getByRole("button", { name: "07 수익성, 준비됨" })).toBeVisible({ timeout: 30000 });
   await expect(page.getByRole("heading", { name: "한 달의 매출에서 이익까지" })).toBeVisible();
   await page.screenshot({ path: path.join(output, "07-financial.png"), fullPage: true });
   await step(page, "08 출점검토");
@@ -156,21 +160,27 @@ test("invalid visible assumptions cannot silently run with previous values", asy
   await conversion.fill("30");
   await page.getByRole("button", { name: "방문 수요 계산" }).click();
   await step(page, "05 가상영업");
+  const previousOperation = await page.getByRole("region", { name: "전체 영업 결과" }).innerText();
   const cooks = page.getByRole("spinbutton", { name: "조리 직원", exact: false });
   await cooks.fill("-1");
-  await page.getByRole("button", { name: "가상 영업 실행", exact: true }).click();
+  await page.getByRole("button", { name: "이 조건으로 다시 실행", exact: true }).click();
   await expect(cooks).toHaveAttribute("aria-invalid", "true");
-  await expect(page.getByRole("region", { name: "전체 영업 결과" })).toHaveCount(0);
+  expect(await page.getByRole("region", { name: "전체 영업 결과" }).innerText()).toBe(previousOperation);
+  await expect(page.getByRole("navigation").getByRole("button", { name: "05 가상영업, 재계산 필요" })).toBeVisible();
   await cooks.fill("2"); await cooks.press("Tab");
-  await page.getByRole("button", { name: "가상 영업 실행", exact: true }).click();
+  await page.getByRole("button", { name: "이 조건으로 다시 실행", exact: true }).click();
+  await expect(page.getByRole("navigation").getByRole("button", { name: "05 가상영업, 준비됨" })).toBeVisible({ timeout: 30000 });
   await expect(page.getByRole("region", { name: "전체 영업 결과" })).toBeVisible({ timeout: 30000 });
   await step(page, "07 수익성");
+  const previousFinancial = await page.locator(".analysis-finance-summary").innerText();
   const days = page.getByRole("spinbutton", { name: "월 영업일" });
   await days.fill("32");
   await page.getByRole("button", { name: "수익성 다시 계산" }).click();
   await expect(days).toHaveAttribute("aria-invalid", "true");
   await expect(days).toBeFocused();
-  await expect(page.getByRole("heading", { name: "한 달의 매출에서 이익까지" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "한 달의 매출에서 이익까지" })).toBeVisible();
+  expect(await page.locator(".analysis-finance-summary").innerText()).toBe(previousFinancial);
+  await expect(page.getByRole("navigation").getByRole("button", { name: "07 수익성, 재계산 필요" })).toBeVisible();
 });
 
 test("Space history survives navigation and replacement clears operational confirmation", async ({ page }) => {
@@ -199,9 +209,11 @@ test("Space history survives navigation and replacement clears operational confi
 test("unprepared steps explain dependencies and mobile pages remain inside viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
+  await expect(page.getByTestId("sample-status")).toHaveAttribute("data-state", "ready", { timeout: 60000 });
   await page.screenshot({ path: path.join(output, "01-site-mobile.png"), fullPage: true });
+  await page.getByRole("textbox", { name: "브랜드명" }).fill("");
   await step(page, "05 가상영업");
-  await expect(page.getByRole("button", { name: "가상 영업 실행", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "이 조건으로 다시 실행", exact: true })).toBeDisabled();
   await expect(page.getByText("후보지에서 점포명·브랜드·주소를 먼저 입력해 주세요.")).toBeVisible();
   await step(page, "08 출점검토");
   await expect(page.getByRole("button", { name: "검토 결과 저장" })).toBeDisabled();

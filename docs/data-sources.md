@@ -11,8 +11,11 @@
 | StoreLayout | FloorPlan → Space 어댑터 | 파생 형상 + 명시적 운영 매핑 |
 | Market | `MockMarketProvider` 1.0.0 | synthetic demo, 실제 외부 데이터 연결 없음 |
 | Demand | `TransparentDemandModel` 1.0.0 | 조건부 가정 계산, 관측 고객/예측이 아님 |
+| 테스터 후보지 | 사용자 제공 점포명·브랜드·주소·면적 | 백초밥 명지점 / 백초밥 / 부산광역시 강서구 명지국제2로 80 비주거시설동 1층 1-86, 1-87호 / 94.44 m² |
 
 사용자 미추적 `260806_김치찌개 식당 평면도.pdf`는 분석·fixture·커밋에 사용하지 않는다. 도면 confidence는 시장 신뢰도나 매출 신뢰구간이 아니다.
+
+테스터 후보지의 사용자 제공 정보와 예시 도면·상권·운영·가격·비용은 출처가 다르다. 기존 공개 도면의 형상 면적은 약 159.9 m²이며 백초밥 명지점의 실측 도면으로 확인된 자료가 아니다. 입력 면적 94.44 m²와 별도로 표시하고 원본 형상·좌석을 자동 변경하지 않는다. 테스터 계산 결과도 실제 명지점의 관측 실적이나 수익 예측이 아니다.
 
 ## Demo Market의 의미와 한계
 
@@ -22,7 +25,7 @@
 - 요청 period는 시나리오 label이다. 관측 구간에서 수집한 실제 자료가 아니다. 모든 위치/기간에 동일한 패턴을 반환한다. weekday/weekend/holiday 계수는 1/1.15/1.1이며 계절성·공휴일 달력은 없다.
 - 네 개의 nearby business 이름·거리·분류는 가상이다. category 문자열의 정확한 일치로 competitor를 표시한다. 실제 경쟁점 명부 또는 지리적 검색 결과가 아니다.
 - resident population과 미입력 주소·좌표·행정구역은 null로 남는다. dataQuality에 누락 필드와 한계를 기록한다. unknown을 관측 0으로 처리하지 않는다.
-- 같은 요청과 provider 설정은 동일한 값을 반환한다. 공급자 계산은 네트워크, 현재 시간, 비결정적 난수를 사용하지 않는다. Phase 8 화면은 사용자의 `Demo 상권 자료 불러오기` 동작으로만 조회하고 `DEMO MARKET DATA`, 공급자·요청 기간·예시 반경·미제공 자료·가상 경쟁점 표시를 유지한다. 화면이 현재 시점 기준 최근 28일을 요청 label로 설정해도 실제 관측 자료가 되는 것은 아니다.
+- 같은 요청과 provider 설정은 동일한 값을 반환한다. 공급자 계산은 네트워크, 현재 시간, 비결정적 난수를 사용하지 않는다. 요청된 테스터 모드는 시작 시 Demo를 자동 준비하고, 이후에는 사용자가 다시 불러올 수 있다. `DEMO MARKET DATA`, 공급자·요청 기간·예시 반경·미제공 자료·가상 경쟁점 표시를 유지한다. 화면이 현재 시점 기준 최근 28일을 요청 label로 설정해도 실제 관측 자료가 되는 것은 아니다.
 
 ## 공급자 추상화와 장애 처리
 
@@ -45,4 +48,4 @@ Phase 6~7의 배달 orders/hour와 객단가·비용·월 영업일은 명시적
 | 주변 사업체/경쟁점 | 공식 사업체 dataset/API·분류 taxonomy·좌표와 거리 계산 방식·수록/폐업 기준, 인증 필요 시 key |
 | 공통 | rate limit·timeout·재시도·라이선스·재배포 조건·개인정보 집계 규칙·provider version |
 
-비밀 key는 서버 또는 신뢰 가능한 런타임 설정에서 주입하고 저장소나 공개 Vite JavaScript에 넣지 않는다. 사용자가 명시적으로 demo를 선택했을 때만 synthetic 자료를 제공한다. 실제 provider는 observed/manual/derived를 정확히 기록하고 출처·공간/시간 해상도·quality/assumptions를 보존해야 한다.
+비밀 key는 서버 또는 신뢰 가능한 런타임 설정에서 주입하고 저장소나 공개 Vite JavaScript에 넣지 않는다. Synthetic 자료는 명시된 테스터 모드 또는 사용자의 Demo 조회로 제공한다. 실제 provider 실패를 Demo 성공으로 바꾸지 않는다. 실제 provider는 observed/manual/derived를 정확히 기록하고 출처·공간/시간 해상도·quality/assumptions를 보존해야 한다.

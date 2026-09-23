@@ -6,6 +6,8 @@
 .simulator .product-mapping>summary,.simulator .product-table-mapping>summary{cursor:pointer;padding:12px 0;font-size:14px;font-weight:600}
 .simulator .product-mapping .product-form-grid{margin-top:20px}.simulator .product-table-mapping-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;padding:16px 0}
 .simulator .product-space-confirm{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-top:18px;font-size:13px}.simulator .product-space-confirm label{display:flex;gap:10px;align-items:center}
+.simulator .product-space-sample-note{display:flex;align-items:baseline;gap:18px;padding:14px 17px;background:#edf3ef;color:#48675a;font-size:12px;line-height:1.75}.simulator .product-space-sample-note strong{flex-shrink:0;font-size:12px;font-weight:600}.simulator .product-space-sample-note p{margin:0}
+.simulator .analysis-review-site>dl{flex-wrap:wrap;row-gap:18px}
 .simulator .product-space-editor{border-block:1px solid #d6dfda;overflow:auto}
 .simulator .product-space-editor .app{height:850px;min-height:720px}.simulator .product-space-editor .app-header{height:60px}.simulator .product-space-editor .app-header .brand,.simulator .product-space-editor .app-header .project-heading .version-pill,.simulator .product-space-editor .workflow-bar{display:none}
 .simulator .product-space-editor .app-header .project-heading{margin-right:auto}.simulator .product-space-editor .left-sidebar,.simulator .product-space-editor .properties{min-height:0}
@@ -13,3 +15,5 @@
 .simulator .product-session-note{font-size:12px;color:#788681;padding:20px clamp(20px,5vw,76px);border-top:1px solid var(--line)}
 @media(max-width:800px){.simulator .product-space-summary{gap:20px}.simulator .product-space-confirm{align-items:stretch;flex-direction:column}.simulator .product-table-mapping-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.simulator .product-space-editor .app{height:760px}.simulator .product-space-editor{max-width:100vw}}
 @media print{.simulator .product-space-editor{display:none}}
+@media(max-width:640px){.simulator .product-space-sample-note{align-items:flex-start;flex-direction:column;gap:5px}}
+.simulator .product-demo-note{margin:0 0 24px;font-size:12px;color:#647773;line-height:1.7}.simulator .product-demo-note strong{display:inline-block;color:#176f5f;background:#eaf2ec;padding:2px 7px;margin-right:8px;font-weight:600}

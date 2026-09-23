@@ -167,8 +167,17 @@ Market의 확장 metadata와 Demand의 bucket breakdown은 기존 profile의 하
 | `product/analysis/*` | Market/Demand/Scenario/Financial/Review 화면, 출처·단위·조건·실패 표시 |
 | `product/operation/OperationStep.tsx` | 실제 StoreLayout 위의 첫 실행 기록 재생; 화면 시계만 사용 |
 | `application/workflow.ts` | 명시적 예시 설정, 도면 checkpoint, 입력 내용 기반 freshness key |
+| `application/testerSample.ts` | 사용자 제공 후보지 preset과 기존 예시 설정 조합, Demo 시장·수요 준비 및 입력 key 생성 |
 | `application/workflowAnalysis.ts`, `product/analysis.worker.ts` | 동일 도메인 API의 운영·비교·민감도·재무 실행을 Worker로 분리 |
 
 UI가 module 내부 renderer나 계산식을 복사하지 않는다. Core에는 선택적 `SimulationObservation`/`SimulationFrame`만 추가해 detached 상태 기록을 전달한다. 기록은 scheduler 이벤트나 RNG를 추가하지 않으며 첫 seed 실행만 30초 간격으로 수집한다. 프레임과 결과 snapshot은 별도 화면 상태다. 기록 재생은 이전 시각의 최근 프레임을 선택하며 모델을 재실행하지 않는다.
 
 입력 key는 후보지/시장/수요/도면/매핑/운영/재무/사용자 시나리오/민감도 변수의 의존 관계를 추적한다. 입력 수정은 진행 중 Worker를 취소하고, 이미 완료된 결과는 이전 조건의 자료로 표시한다. 시나리오와 재무가 최신이 아니면 검토 요약 내보내기를 제한한다. 데이터는 현재 브라우저 메모리에만 있으며 `store-review.json`은 검토 요약, FloorPlan JSON은 기존 편집 문서다. UI 사용법과 제한은 [product-workflow.md](product-workflow.md)에 기록한다.
+
+### 테스터 preset과 자동 준비
+
+`createTesterSampleInput`은 사용자 제공 백초밥 명지점·브랜드·주소·94.44 m²를 후보지 정보로 넣고 기존 수요·운영·재무 demo 설정과 공개 예시 도면을 조합한다. 공개 도면의 약 159.9 m² 형상과 정원은 변경하지 않으며 이 후보지의 실측 도면으로 표시하지 않는다. UI는 입력 면적과 도면 면적, 사용자 정보와 synthetic 가정을 구분한다.
+
+마운트 시 한 Worker의 `kind: "sample"` 요청이 시장·수요·운영·시나리오·민감도·재무를 순서대로 계산한다. 모두 성공한 결과를 한 응답으로 반영하며 실패 시 일부 결과를 성공한 전체 샘플로 취급하지 않는다. 입력 변경은 Worker와 요청 generation을 취소하므로 늦은 응답이 편집값을 덮어쓰지 않는다. 완료 처리는 단계나 hash를 바꾸지 않는다. 실제 provider 실패 시 Demo로 전환하는 fallback과 무관한, 요청된 체험 모드의 명시적 동작이다.
+
+`sampleSpaceReady`는 초기 예시 공간을 실행할 수 있다는 상태이며 `spaceConfirmed`의 사람 확인과 분리한다. 샘플에서는 확인 체크 없이 진행할 수 있지만 도면·매핑 변경이나 import는 샘플 준비 상태를 해제하고 확인 절차로 돌아간다. 새로고침·재접속은 preset으로 다시 계산하며 편집 내용을 영속 저장하지 않는다. 데스크톱 개발 서버는 `strictPort: true`인 5173을 사용하며 포트 충돌 시 기존 프로젝트 서버를 확인한다.

@@ -19,9 +19,10 @@ export function PlanThumbnail({ plan }: { plan: FloorPlan }) {
   </svg>;
 }
 
-export function SpaceStep({ plan, mapping, layout, confirmed, onMappingChange, onConfirm, children }: {
+export function SpaceStep({ plan, mapping, layout, confirmed, onMappingChange, onConfirm, children, sampleReady = false, knownAreaM2 }: {
   plan: FloorPlan; mapping: LayoutMapping; layout: StoreLayout | null; confirmed: boolean;
   onMappingChange: (mapping: LayoutMapping) => void; onConfirm: () => void; children: ReactNode;
+  sampleReady?: boolean; knownAreaM2?: number | null;
 }) {
   const [defaultSeats, setDefaultSeats] = useState(4);
   const [checked, setChecked] = useState(false);
@@ -32,13 +33,15 @@ export function SpaceStep({ plan, mapping, layout, confirmed, onMappingChange, o
     <div className="product-page product-space-intro">
       <div className="product-page-heading"><span className="product-eyebrow">02 / SPACE DESIGN</span><h1>이 공간에 우리 매장을 배치합니다.</h1><p>도면을 편집하고, 가상영업에 사용할 출입구와 좌석 정원을 확인하세요.</p></div>
       <dl className="product-space-summary">
+        {knownAreaM2 !== undefined && knownAreaM2 !== null && <div><dt>입력 면적</dt><dd>{knownAreaM2.toLocaleString("ko-KR", { maximumFractionDigits: 2 })}<small> m² · 사용자 제공</small></dd></div>}
         <div><dt>도면 면적</dt><dd>{layout?.totalAreaM2.toFixed(1) ?? "—"}<small> m² · 형상 기준</small></dd></div>
         <div><dt>홀 / 주방</dt><dd>{layout?.hallAreaM2?.toFixed(1) ?? "—"} / {layout?.kitchenAreaM2?.toFixed(1) ?? "—"}<small> m²</small></dd></div>
         <div><dt>테이블</dt><dd>{tables.length}<small> 개</small></dd></div>
         <div><dt>운영 좌석 정원</dt><dd>{layout?.confirmedCapacity ?? "미확정"}<small>{layout?.confirmedCapacity ? " 석" : ""}</small></dd></div>
       </dl>
+      {sampleReady && <div className="product-space-sample-note"><strong>예시 공간 설정</strong><p>출입구·주방과 테이블당 4석은 체험용 설정입니다. 연결된 공개 예시 도면은 이 후보지의 실측 도면이 아니며, 사용자 입력 면적에 맞춰 도면이나 정원을 변경하지 않았습니다.</p></div>}
       <details className="product-mapping" open={!ready}>
-        <summary>운영에 사용할 공간 정보 {confirmed ? "· 확인 완료" : "· 확인 필요"}</summary>
+        <summary>운영에 사용할 공간 정보 {sampleReady ? "· 예시 공간 설정" : confirmed ? "· 확인 완료" : "· 확인 필요"}</summary>
         <p className="product-note">기준 예시는 테이블당 4석으로 지정되어 있습니다. 실제 정원과 다르면 수정하세요. 새 도면을 불러오면 다시 지정해야 합니다.</p>
         <div className="product-form-grid">
           <label className="product-field">고객 출입구<select className="product-select" value={mapping.entranceIds?.[0] ?? ""} onChange={e => onMappingChange({ ...mapping, entranceIds: e.target.value ? [e.target.value] : [] })}><option value="">출입구 선택</option>{plan.doors.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select></label>
@@ -51,8 +54,10 @@ export function SpaceStep({ plan, mapping, layout, confirmed, onMappingChange, o
           {plan.zones.map(z => <label className="product-field" key={z.id}>{z.name} 역할<select className="product-select" value={mapping.zoneRoles?.[z.id] ?? "other"} onChange={e => onMappingChange({ ...mapping, zoneRoles: { ...mapping.zoneRoles, [z.id]: e.target.value as "hall" | "kitchen" | "service" | "other" } })}><option value="other">미지정 / 기타</option><option value="hall">홀</option><option value="kitchen">주방</option><option value="service">서비스</option></select></label>)}
         </div></details>
       </details>
-      <div className="product-space-confirm"><label><input type="checkbox" checked={confirmed || checked} onChange={e => setChecked(e.target.checked)} /> 출입구·주방과 테이블별 운영 정원을 확인했습니다.</label>
-        <button className="product-button product-button-primary" disabled={!ready || (!confirmed && !checked)} onClick={onConfirm}>공간 확인하고 상권으로</button></div>
+      {sampleReady ? <div className="product-space-confirm"><p className="product-note">샘플 체험에는 실제 공간 확인이 필요하지 않습니다. 실제 후보지 검토 시 도면과 정원을 확인하세요.</p>
+        <button className="product-button product-button-primary" disabled={!ready} onClick={onConfirm}>예시 공간으로 계속</button></div>
+        : <div className="product-space-confirm"><label><input type="checkbox" checked={confirmed || checked} onChange={e => setChecked(e.target.checked)} /> 출입구·주방과 테이블별 운영 정원을 확인했습니다.</label>
+          <button className="product-button product-button-primary" disabled={!ready || (!confirmed && !checked)} onClick={onConfirm}>공간 확인하고 상권으로</button></div>}
       {!ready && <p className="product-note">도면에 테이블·출입구·주방·서비스 설비를 추가한 뒤 운영 정보를 지정하면 가상영업을 실행할 수 있습니다.</p>}
     </div>
     <div className="product-space-editor">{children}</div>

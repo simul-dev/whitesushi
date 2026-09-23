@@ -3,7 +3,7 @@ import {
   updateProjectBase, type DemandProfile, type MarketProfile, type SimulationFrame, type Site,
 } from "../core";
 import {
-  checkpointWorkflow, createWorkflowConfiguration, sampleWorkflowSession, sanitizeMapping, workflowInputKeys,
+  checkpointWorkflow, sanitizeMapping, workflowInputKeys,
   type CandidateDetails, type CustomScenarioInputs, type SensitivityChoice,
 } from "../application/workflow";
 import type { WorkflowAnalysisRequest, WorkflowAnalysisResult, WorkflowWorkerReply } from "../application/workflowAnalysis";
@@ -20,22 +20,27 @@ import { SpaceStep, PlanThumbnail } from "./SpaceStep";
 import { OperationStep } from "./operation";
 import { MarketStep, DemandStep, ScenarioStep, FinancialStep, ReviewStep } from "./analysis";
 import type { StepStatus, WorkflowStep } from "./types";
+import { createTesterSampleInput } from "../application/testerSample";
 
 const initialStep = (): WorkflowStep => WORKFLOW_STEPS.find(s => s.id === window.location.hash.slice(1))?.id ?? "site";
-const jobNames = { market: "예시 상권 자료를 준비하고 있습니다…", operation: "같은 조건으로 가상영업을 반복하고 있습니다…", comparison: "네 가지 운영 조건을 비교하고 있습니다…", sensitivity: "한 가지 가정의 영향을 비교하고 있습니다…", financial: "완료된 영업 결과로 수익구조를 계산하고 있습니다…" };
+const jobNames = { sample: "백초밥 명지점 체험용 상권·영업·수익성 결과를 준비하고 있습니다…", market: "예시 상권 자료를 준비하고 있습니다…", operation: "같은 조건으로 가상영업을 반복하고 있습니다…", comparison: "네 가지 운영 조건을 비교하고 있습니다…", sensitivity: "한 가지 가정의 영향을 비교하고 있습니다…", financial: "완료된 영업 결과로 수익구조를 계산하고 있습니다…" };
 type Job = keyof typeof jobNames;
 type Stamped<T> = { value: T; key: string };
 
 export default function SimulatorApp() {
-  const [session, setSession] = useState(() => sampleWorkflowSession(new Date().toISOString()));
+  const [initial] = useState(() => createTesterSampleInput(new Date().toISOString()));
+  const [session, setSession] = useState(initial.session);
   const [plan, setPlan] = useState(session.document);
   const initialPlan = useRef(session.document);
   const planSignature = useRef(JSON.stringify(session.document));
   const [mapping, setMapping] = useState<LayoutMapping>(session.mapping);
   const [spaceConfirmed, setSpaceConfirmed] = useState(false);
-  const [candidate, setCandidate] = useState<CandidateDetails>({ projectName: "새 후보점", brandName: "", address: "", notes: "", knownAreaM2: null });
-  const [configuration, setConfiguration] = useState(createWorkflowConfiguration);
-  const [custom, setCustom] = useState<CustomScenarioInputs>({ conversionChangePercent: 0, spendingChangePercent: 0, cooks: 3, kitchenConcurrentOrders: 4 });
+  const [sampleSpaceReady, setSampleSpaceReady] = useState(true);
+  const spaceReady = spaceConfirmed || sampleSpaceReady;
+  const [sampleStatus, setSampleStatus] = useState<"loading" | "ready" | "error" | "edited">("loading");
+  const [candidate, setCandidate] = useState<CandidateDetails>(initial.candidate);
+  const [configuration, setConfiguration] = useState(initial.configuration);
+  const [custom, setCustom] = useState<CustomScenarioInputs>(initial.custom);
   const [sensitivityParameter, setSensitivityParameter] = useState<SensitivityChoice>("conversion");
   const [step, setStep] = useState<WorkflowStep>(initialStep);
   const [market, setMarket] = useState<Stamped<MarketProfile> | null>(null);
@@ -56,18 +61,23 @@ export default function SimulatorApp() {
   const readySite = !!candidate.projectName.trim() && !!candidate.brandName.trim() && !!candidate.address.trim();
   const marketStale = !!market && (!readySite || market.key !== keys.site);
   const demandStale = !!demand && (demand.key !== keys.demand || marketStale);
-  const operationStale = !!operation && (operation.key !== keys.operation || !spaceConfirmed || marketStale || demandStale);
+  const operationStale = !!operation && (operation.key !== keys.operation || !spaceReady || marketStale || demandStale);
   const financialStale = !!financial && (financial.key !== keys.financial || operationStale);
-  const comparisonStale = !!comparison && (comparison.key !== keys.comparison || !spaceConfirmed || marketStale || demandStale);
-  const sensitivityStale = !!sensitivity && (sensitivity.key !== keys.sensitivity || !spaceConfirmed || marketStale || demandStale);
+  const comparisonStale = !!comparison && (comparison.key !== keys.comparison || !spaceReady || marketStale || demandStale);
+  const sensitivityStale = !!sensitivity && (sensitivity.key !== keys.sensitivity || !spaceReady || marketStale || demandStale);
   const analysisBlock = !readySite ? "site" : "";
-  const operationBlock = !readySite ? "site" : !spaceConfirmed ? "space" : !market || marketStale ? "market" : !demand || demandStale ? "demand" : "";
+  const operationBlock = !readySite ? "site" : !spaceReady ? "space" : !market || marketStale ? "market" : !demand || demandStale ? "demand" : "";
   const blockMessages: Record<string, string> = { site: "후보지에서 점포명·브랜드·주소를 먼저 입력해 주세요.", space: "공간설계에서 출입구와 좌석 정원을 확인해 주세요.", market: "상권분석에서 현재 후보지의 자료를 불러와 주세요.", demand: "수요가정에서 변경한 가정으로 유입 수요를 계산해 주세요." };
 
-  const cancelTask = useCallback(() => {
+  const cancelTask = useCallback((edited = true) => {
     requestVersion.current++; worker.current?.terminate(); worker.current = null; setJob(null); setError("");
+    if (edited) setSampleStatus("edited");
   }, []);
-  useEffect(() => () => { requestVersion.current++; worker.current?.terminate(); }, []);
+  useEffect(() => {
+    // Each StrictMode setup owns a new generation; edits cancel the whole transaction.
+    startWorker({ kind: "sample", input: initial }, "");
+    return () => { requestVersion.current++; worker.current?.terminate(); worker.current = null; };
+  }, [initial]);
   useEffect(() => { const listener = () => setStep(initialStep()); window.addEventListener("hashchange", listener); return () => window.removeEventListener("hashchange", listener); }, []);
   function navigate(next: WorkflowStep) {
     setStep(next); window.history.pushState(null, "", `${window.location.pathname}${window.location.search}#${next}`);
@@ -77,9 +87,9 @@ export default function SimulatorApp() {
     const signature = JSON.stringify(next);
     if (signature === planSignature.current) return;
     planSignature.current = signature; cancelTask(); setPlan(next);
-    setMapping(previous => sanitizeMapping(next, previous)); setSpaceConfirmed(false);
+    setMapping(previous => sanitizeMapping(next, previous)); setSpaceConfirmed(false); setSampleSpaceReady(false);
   }, [cancelTask]);
-  const replaceDocument = useCallback(() => { cancelTask(); setMapping({}); setSpaceConfirmed(false); }, [cancelTask]);
+  const replaceDocument = useCallback(() => { cancelTask(); setMapping({}); setSpaceConfirmed(false); setSampleSpaceReady(false); }, [cancelTask]);
   function checkpoint(currentMarket: MarketProfile | null = market?.value ?? null) {
     const next = checkpointWorkflow({ session, candidate, plan, mapping, configuration, market: currentMarket, now: new Date().toISOString() });
     setSession(next); return next;
@@ -106,22 +116,34 @@ export default function SimulatorApp() {
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   }
   function startWorker(request: WorkflowAnalysisRequest, stamp: string) {
-    cancelTask(); const version = ++requestVersion.current; setJob(request.kind);
+    cancelTask(false); const version = ++requestVersion.current; setJob(request.kind);
+    setSampleStatus(previous => request.kind === "sample" ? "loading" : previous === "loading" ? "edited" : previous);
     try {
       const activeWorker = new Worker(new URL("./analysis.worker.ts", import.meta.url), { type: "module" }); worker.current = activeWorker;
       const finish = () => { activeWorker.terminate(); if (worker.current === activeWorker) worker.current = null; if (version === requestVersion.current) setJob(null); };
       activeWorker.onmessage = (event: MessageEvent<WorkflowWorkerReply>) => {
         if (version !== requestVersion.current) { finish(); return; }
-        if (!event.data.ok) setError(event.data.error);
+        if (!event.data.ok) { setError(event.data.error); if (request.kind === "sample") setSampleStatus("error"); }
         else acceptResult(event.data.result, stamp);
         finish();
       };
-      activeWorker.onerror = () => { if (version === requestVersion.current) setError("분석을 실행하지 못했습니다. 페이지를 새로고침하기 전에 도면을 JSON으로 저장하고 다시 시도해 주세요."); finish(); };
+      activeWorker.onerror = () => { if (version === requestVersion.current) { setError("분석을 실행하지 못했습니다. 페이지를 새로고침하기 전에 도면을 JSON으로 저장하고 다시 시도해 주세요."); if (request.kind === "sample") setSampleStatus("error"); } finish(); };
       activeWorker.postMessage(request);
-    } catch (e) { setJob(null); setError(e instanceof Error ? e.message : String(e)); }
+    } catch (e) { worker.current?.terminate(); worker.current = null; setJob(null); setError(e instanceof Error ? e.message : String(e)); if (request.kind === "sample") setSampleStatus("error"); }
   }
   function acceptResult(result: WorkflowAnalysisResult, stamp: string) {
     switch (result.kind) {
+      case "sample": {
+        const prepared = result.prepared, stamps = prepared.keys;
+        setSession(prepared.session);
+        setMarket({ value: prepared.market, key: stamps.site });
+        setDemand({ value: prepared.demand, key: stamps.demand });
+        setOperation({ value: result.evaluation, key: stamps.operation }); setFrames(result.frames);
+        setComparison({ value: result.comparison, key: stamps.comparison });
+        setSensitivity({ value: result.sensitivity, key: stamps.sensitivity });
+        setFinancial({ value: result.financial, key: stamps.financial });
+        setSampleStatus("ready"); break;
+      }
       case "operation":
         setOperation({ value: result.evaluation, key: stamp }); setFrames(result.frames);
         if (!result.evaluation.ok) setError(result.evaluation.issues.map(i => i.message).join(" · "));
@@ -146,12 +168,12 @@ export default function SimulatorApp() {
   }
   const status = (value: unknown, stale: boolean, running = false): StepStatus => running ? "running" : !value ? "empty" : stale ? "stale" : "ready";
   const statuses = {
-    site: readySite ? "ready" : "empty", space: spaceConfirmed ? "ready" : "empty",
-    market: status(market, marketStale, job === "market"), demand: status(demand, demandStale),
-    operation: status(operation?.value.ok, operationStale, job === "operation"),
-    scenario: status(comparison?.value.ok, comparisonStale || sensitivityStale, job === "comparison" || job === "sensitivity"),
-    financial: status(financial, financialStale, job === "financial"),
-    review: status(financial && comparison?.value.ok, financialStale || comparisonStale || sensitivityStale || operationStale),
+    site: readySite ? "ready" : "empty", space: spaceReady ? "ready" : "empty",
+    market: status(market, marketStale, job === "market" || job === "sample"), demand: status(demand, demandStale, job === "sample"),
+    operation: status(operation?.value.ok, operationStale, job === "operation" || job === "sample"),
+    scenario: status(comparison?.value.ok, comparisonStale || sensitivityStale, job === "comparison" || job === "sensitivity" || job === "sample"),
+    financial: status(financial, financialStale, job === "financial" || job === "sample"),
+    review: status(financial && comparison?.value.ok, financialStale || comparisonStale || sensitivityStale || operationStale, job === "sample"),
   } satisfies Record<WorkflowStep, StepStatus>;
   const displaySite: Site = { ...session.project.site, name: candidate.projectName || "새 후보점", address: candidate.address || null };
   function exportReview() {
@@ -173,32 +195,36 @@ export default function SimulatorApp() {
     const anchor = document.createElement("a"); anchor.href = url; anchor.download = "store-review.json"; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   return <ProductShell candidate={candidate} step={step} statuses={statuses} onNavigate={navigate} busy={job ? jobNames[job] : undefined} error={error} onDismissError={() => setError("")}>
-    {step === "site" && <SiteStep value={candidate} onChange={value => { cancelTask(); setCandidate(value); }} onContinue={() => navigate("space")} onOpenSpace={() => navigate("space")} hasPlan={true} planName={plan.name} preview={<PlanThumbnail plan={plan} />} />}
+    <span data-testid="sample-status" data-state={sampleStatus} hidden />
+    {step !== "site" && <p className="product-demo-note"><strong>샘플 데이터</strong> 기본 상권·운영·비용은 체험용 예시입니다. 실제 점포의 실적이나 계약조건이 아닙니다.</p>}
+    {step === "site" && <SiteStep value={candidate} onChange={value => { cancelTask(); setCandidate(value); }} onContinue={() => navigate("space")} onOpenSpace={() => navigate("space")} hasPlan={true} planName={plan.name} preview={<PlanThumbnail plan={plan} />}
+      sampleStatus={sampleStatus} onOpenOperation={() => navigate("operation")} onRetrySample={() => startWorker({ kind: "sample", input: initial }, "")} />}
     <div className="product-workflow-panel" hidden={step !== "space"}>
-      <SpaceStep plan={plan} mapping={mapping} layout={layout} confirmed={spaceConfirmed}
-        onMappingChange={value => { cancelTask(); setMapping(value); setSpaceConfirmed(false); }}
-        onConfirm={() => { setSpaceConfirmed(true); navigate("market"); }}>
+      <SpaceStep plan={plan} mapping={mapping} layout={layout} confirmed={spaceConfirmed} sampleReady={sampleSpaceReady} knownAreaM2={candidate.knownAreaM2}
+        onMappingChange={value => { cancelTask(); setMapping(value); setSpaceConfirmed(false); setSampleSpaceReady(false); }}
+        onConfirm={() => { if (!sampleSpaceReady) setSpaceConfirmed(true); navigate("market"); }}>
         <SpaceWorkspace initialPlan={initialPlan.current} active={step === "space"} embedded onPlanChange={changePlan} onDocumentReplace={replaceDocument} />
       </SpaceStep>
     </div>
-    {step === "market" && <MarketStep site={displaySite} profile={market?.value ?? null} onRun={loadMarket} busy={job === "market"} stale={marketStale} disabledReason={blockMessages[analysisBlock]} />}
+    {step === "market" && <MarketStep site={displaySite} profile={market?.value ?? null} onRun={loadMarket} busy={job === "market" || job === "sample"} stale={marketStale} disabledReason={blockMessages[analysisBlock]} />}
     {step === "demand" && <DemandStep parameters={configuration.demandParameters} profile={demand?.value ?? null} market={market?.value ?? null} config={configuration.simulation}
       onChange={value => { cancelTask(); setConfiguration(previous => ({ ...previous, demandParameters: value })); }} onRun={calculateDemand} stale={demandStale}
-      disabledReason={!market || marketStale ? blockMessages.market : undefined} />}
+      busy={job === "sample"} disabledReason={!market || marketStale ? blockMessages.market : undefined} />}
     {step === "operation" && <OperationStep run={operation?.value.ok ? operation.value.runs[0] : null} frames={frames} layout={layout} policy={configuration.operation} config={configuration.simulation}
       onPolicyChange={value => { cancelTask(); setConfiguration(previous => ({ ...previous, operation: value })); }}
       onConfigChange={value => { cancelTask(); setConfiguration(previous => ({ ...previous, simulation: value,
         financial: { ...previous.financial, operatingDayMix: [{ dayType: value.dayType, daysPerMonth: previous.financial.operatingDaysPerMonth, runToDayMultiplier: 1 }] } })); }}
-      onRun={() => runAnalysis("operation")} busy={job === "operation"} stale={operationStale} disabledReason={blockMessages[operationBlock]} />}
+      onRun={() => runAnalysis("operation")} busy={job === "operation" || job === "sample"} stale={operationStale}
+      disabledReason={job === "sample" ? "샘플 영업 기록을 자동으로 준비하고 있습니다. 준비가 끝나면 바로 재생할 수 있습니다." : blockMessages[operationBlock]} />}
     {step === "scenario" && <ScenarioStep comparison={comparison?.value ?? null} sensitivity={sensitivity?.value ?? null} custom={custom}
       maxConversionChangePercent={configuration.demandParameters.visitConversionRate > 0 ? (1 / configuration.demandParameters.visitConversionRate - 1) * 100 : undefined}
       onCustomChange={value => { cancelTask(); setCustom(value); }} sensitivityParameter={sensitivityParameter}
       onSensitivityParameterChange={value => { cancelTask(); setSensitivityParameter(value); }}
-      onRun={() => runAnalysis("comparison")} onRunSensitivity={() => runAnalysis("sensitivity")} busy={job === "comparison"} sensitivityBusy={job === "sensitivity"}
+      onRun={() => runAnalysis("comparison")} onRunSensitivity={() => runAnalysis("sensitivity")} busy={job === "comparison" || job === "sample"} sensitivityBusy={job === "sensitivity" || job === "sample"}
       stale={comparisonStale || sensitivityStale} disabledReason={blockMessages[operationBlock]} />}
     {step === "financial" && <FinancialStep assumptions={configuration.financial} result={financial?.value ?? null} operation={configuration.operation}
       onChange={value => { cancelTask(); setConfiguration(previous => ({ ...previous, financial: { ...value, revision: previous.financial.revision + 1 } })); }}
-      onRun={calculateFinancial} scenarioName="기준 조건" busy={job === "financial"} stale={financialStale}
+      onRun={calculateFinancial} scenarioName="기준 조건" busy={job === "financial" || job === "sample"} stale={financialStale}
       disabledReason={!operation?.value.ok || operationStale ? "가상영업에서 현재 조건으로 먼저 실행해 주세요." : undefined} />}
     {step === "review" && <ReviewStep candidate={candidate} layout={layout} market={market?.value ?? null} operation={operation?.value ?? null}
       financial={financial?.value ?? null} comparison={comparison?.value ?? null} sensitivity={sensitivity?.value ?? null}
