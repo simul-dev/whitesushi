@@ -1,7 +1,7 @@
 import {
   canonicalJson, DomainValidationError, validateDemand, validateOperation, validateSimulation,
   validateSimulationSnapshot, type Assumption, type OperationModel, type OperationProcess,
-  type SimulationEngine, type SimulationResult, type SimulationSnapshot,
+  type SimulationEngine, type SimulationResult, type SimulationFrame,
 } from "../../core";
 import { validateOperationProcess } from "./process";
 import { MinHeap, randomStream } from "./random";
@@ -30,11 +30,11 @@ const MAX_PARTIES = 100000;
 export class DiscreteEventSimulationEngine implements SimulationEngine {
   readonly descriptor = Object.freeze({ id: "generic-des", version: "1.0.0" });
 
-  async run({ runId, snapshot, operationModel }: { runId: string; snapshot: SimulationSnapshot; operationModel: OperationModel }): Promise<SimulationResult> {
+  async run({ runId, snapshot, operationModel, observation }: Parameters<SimulationEngine["run"]>[0]): Promise<SimulationResult> {
     if (!runId.trim()) fail("runId", "required");
     validateSimulationSnapshot(snapshot);
     if (canonicalJson(snapshot.engine) !== canonicalJson(this.descriptor)) fail("snapshot.engine", "engine version mismatch");
-    const { layout, demand, operation, config } = snapshot.input;
+    const { layout, demand, operation, config } = structuredClone(snapshot.input);
     validateDemand(demand); validateOperation(operation); validateSimulation(config);
     if (config.replications !== 1) fail("config.replications", "one run returns one replication; prepare separate runs with explicit seeds");
     if (canonicalJson(operationModel.descriptor) !== canonicalJson(operation.model)) fail("operation.model", "injected model version mismatch");
@@ -45,6 +45,12 @@ export class DiscreteEventSimulationEngine implements SimulationEngine {
     if (canonicalJson(process.model) !== canonicalJson(operationModel.descriptor)) fail("process.model", "process version mismatch");
     validateOperationProcess(process);
     const start = config.startMinute * 60, horizon = config.durationSeconds;
+    const frameInterval = observation?.intervalSeconds;
+    const observeFrame = observation?.onFrame;
+    if (observation && (!(typeof frameInterval === "number" && Number.isFinite(frameInterval) && frameInterval > 0) || typeof observeFrame !== "function"))
+      fail("observation", "requires a finite positive intervalSeconds and an onFrame callback");
+    if (frameInterval && Math.ceil(horizon / frameInterval) + 1 > 5000)
+      fail("observation.intervalSeconds", "observation exceeds the 5000 frame budget; increase intervalSeconds");
     const firstHour = Math.floor(start / 3600), lastHour = Math.ceil((start + horizon) / 3600);
     const demandByHour = new Map(demand.buckets.filter((bucket) => bucket.dayType === config.dayType).map((bucket) => [bucket.hour, bucket]));
     for (let hour = firstHour; hour < lastHour; hour++) if (!demandByHour.has(hour)) fail("demand.buckets", `missing explicit demand for hour ${hour}`);
@@ -70,6 +76,48 @@ export class DiscreteEventSimulationEngine implements SimulationEngine {
     let sequence = 0, partyId = 0, requestId = 0, now = 0;
     let pending: CustomerParty[] = [];
     const arrived: CustomerParty[] = [];
+    let frameIndex = 0, frameCount = 0, lastFrameTime = -1;
+    function captureFrame(elapsedSeconds: number) {
+      if (!observeFrame) return;
+      if (++frameCount > 5000) fail("observation", "observation exceeds the 5000 frame budget");
+      const customers = { arrived: 0, served: 0, lost: 0, waiting: 0, inSystem: 0 };
+      const delivery = { arrived: 0, completed: 0, lost: 0, waiting: 0, inSystem: 0 };
+      const entities: SimulationFrame["entities"] = [];
+      for (const party of arrived) {
+        if (party.channel === "dine-in") {
+          customers.arrived += party.size;
+          if (party.state === "served") customers.served += party.size;
+          else if (party.state === "lost") customers.lost += party.size;
+          else { customers.inSystem += party.size; if (party.state === "waiting") customers.waiting += party.size; }
+        } else {
+          delivery.arrived++;
+          if (party.state === "served") delivery.completed++;
+          else if (party.state === "lost") delivery.lost++;
+          else { delivery.inSystem++; if (party.state === "waiting") delivery.waiting++; }
+        }
+        if (party.state === "waiting" || party.state === "active") entities.push({
+          id: `${party.channel}:${party.id}`, channel: party.channel, size: party.size,
+          stageId: party.stageId, status: party.state,
+          allocations: party.held.map(allocation => ({ resourceId: allocation.resourceId, units: allocation.units, unitIndices: [...allocation.members] })),
+        });
+      }
+      // Every array/object is detached. Observers receive no mutable scheduler state.
+      const frame: SimulationFrame = {
+        elapsedSeconds, customers, delivery, entities,
+        resources: [...resources.values()].map(resource => ({ resourceId: resource.id, capacityUnits: resource.capacityUnits,
+          busyUnits: resource.busy, occupiedUnitIndices: [...resource.occupied].sort((a, b) => a - b) })),
+      };
+      lastFrameTime = elapsedSeconds;
+      observeFrame(frame);
+    }
+    function captureBefore(time: number, inclusive = false) {
+      if (!frameInterval || !observeFrame) return;
+      for (;;) {
+        const frameTime = frameIndex * frameInterval;
+        if (frameTime > horizon || !(frameTime < time || (inclusive && frameTime <= time))) break;
+        captureFrame(frameTime); frameIndex++;
+      }
+    }
     const servedByHour = new Map<number, number>();
     const deliveryByCompletionHour = new Map<number, number>();
     for (let hour = firstHour; hour < lastHour; hour++) { servedByHour.set(hour, 0); deliveryByCompletionHour.set(hour, 0); }
@@ -215,6 +263,10 @@ export class DiscreteEventSimulationEngine implements SimulationEngine {
       if (event.time > horizon) break;
       const { party } = event;
       if (event.kind === "timeout" && (party.state !== "waiting" || event.requestId !== party.requestId)) continue;
+      // Flush only BEFORE the next clock value. All same-time events, including
+      // zero-duration chains created by dispatch, finish before their frame.
+      // Observation never advances accounting time, schedules events or samples RNG.
+      captureBefore(event.time);
       advance(event.time);
       if (event.kind === "arrival") {
         arrived.push(party); request(party, party.startStageId);
@@ -244,6 +296,8 @@ export class DiscreteEventSimulationEngine implements SimulationEngine {
     }
     advance(horizon);
     pending.forEach((party) => { recordWait(party, horizon - party.requestedAt); });
+    captureBefore(horizon, true);
+    if (observeFrame && lastFrameTime < horizon) captureFrame(horizon);
     const dineIn = arrived.filter(party => party.channel === "dine-in");
     const delivery = arrived.filter(party => party.channel === "delivery");
     const customersArrived = dineIn.reduce((sum, party) => sum + party.size, 0);

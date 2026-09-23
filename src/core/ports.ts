@@ -1,7 +1,7 @@
 import type {
   DemandParameters, DemandProfile, DomainIssue, FinancialInput, FinancialResult,
   MarketProfile, ModuleVersion, OperationPolicy, OperationProcess, Project, SimulationResult,
-  SimulationSnapshot, Site, StoreLayout,
+  SimulationSnapshot, SimulationObservation, Site, StoreLayout,
 } from "./types";
 
 /** Provider contract; concrete providers live outside Core and preserve provenance. */
@@ -23,7 +23,7 @@ export interface OperationModel {
 export interface SimulationEngine {
   readonly descriptor: ModuleVersion;
   /** Inject the version-matched industry model; engine must not hardcode restaurant stages. */
-  run(input: { runId: string; snapshot: SimulationSnapshot; operationModel: OperationModel }): Promise<SimulationResult>;
+  run(input: { runId: string; snapshot: SimulationSnapshot; operationModel: OperationModel; observation?: SimulationObservation }): Promise<SimulationResult>;
 }
 export interface FinancialEngine {
   readonly descriptor: ModuleVersion;

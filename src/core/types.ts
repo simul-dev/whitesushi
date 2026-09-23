@@ -303,6 +303,25 @@ export interface SimulationRun {
   result: SimulationResult | null;
   error: string | null;
 }
+/** Read-only sampled process state. Animation clocks never drive engine events. */
+export interface SimulationFrame {
+  elapsedSeconds: number;
+  customers: { arrived: number; served: number; lost: number; waiting: number; inSystem: number };
+  delivery: { arrived: number; completed: number; lost: number; waiting: number; inSystem: number };
+  resources: { resourceId: string; capacityUnits: number; busyUnits: number; occupiedUnitIndices: number[] }[];
+  entities: {
+    id: string;
+    channel: "dine-in" | "delivery";
+    size: number;
+    stageId: string;
+    status: "waiting" | "active";
+    allocations: { resourceId: string; units: number; unitIndices: number[] }[];
+  }[];
+}
+export interface SimulationObservation {
+  intervalSeconds: number;
+  onFrame: (frame: SimulationFrame) => void;
+}
 export interface FinancialInput { simulationRuns: SimulationRun[]; assumption: FinancialAssumption }
 export interface FinancialResult {
   id: string;
