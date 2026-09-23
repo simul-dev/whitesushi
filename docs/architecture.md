@@ -2,7 +2,7 @@
 
 ## 방향과 현재 범위
 
-기존 FloorPlan → 3D 동작을 보존하면서 Space와 공통 도메인을 분리한다. Phase 0~7과 Delivery 확장으로 Market demo, Demand, 공유 주방 DES, 시나리오 반복실험·민감도·재무 계산을 구현했다. 시나리오 비교 UI와 통합 Wizard는 후속 단계다. 현재 Space 화면은 유지하며 분석은 UI 없는 공개 API로 실행한다.
+기존 FloorPlan → 3D 동작을 보존하면서 Space와 공통 도메인을 분리한다. Phase 0~7과 Delivery 확장으로 Market demo, Demand, 공유 주방 DES, 시나리오 반복실험·민감도·재무 계산을 구현했다. Phase 8은 이 공개 API를 후보지부터 출점검토까지 8단계 UI로 연결한다. 기존 Space 편집기는 공간설계 단계와 `?workspace=space` 단독 경로에서 유지한다.
 
 의존 방향은 `Application → Module public API → Core contracts`다. Core는 React, Three.js, PDF.js, DOM 및 네트워크에 의존하지 않는다. Space는 기존 FloorPlan을 소유하고, 다른 모듈에는 명시적인 StoreLayout 어댑터 출력을 제공한다.
 
@@ -44,7 +44,7 @@ Application / Project / Scenario
 | `modules/space/pdfImport.ts` | PDF worker, render/calibration | 브라우저 import |
 | `modules/space/exports.ts` | WebGL/GLTF/이미지 출력 | 승인된 export |
 
-`initialPlan`은 마운트 시 검증·복제한다. `onPlanChange`는 초기 문서 및 편집/undo/import 후 분리된 사본을 알린다. 부모가 이 사본을 수정해도 편집기 상태를 손상시키지 않는다. 다른 문서를 열 때 React `key`를 바꿔 선택·검토·히스토리를 초기화한다. 단순한 단계 이동은 편집기를 유지해야 한다. 전체 Wizard는 Phase 8 범위다.
+`initialPlan`은 마운트 시 검증·복제한다. `onPlanChange`는 초기 문서 및 편집/undo/import 후 분리된 사본을 알린다. 부모가 이 사본을 수정해도 편집기 상태를 손상시키지 않는다. 다른 세션을 열 때 React `key`를 바꿔 선택·검토·히스토리를 초기화할 수 있다. Phase 8에서는 단계 이동 중 편집기를 마운트한 채 유지하고 `active`로 숨겨진 편집기의 단축키를 중지한다. `onDocumentReplace`는 새 PDF/JSON에 기존 운영 매핑이 잘못 적용되지 않도록 Application에 문서 교체를 알린다.
 
 ## Core 및 Application 경계 (Phase 2)
 
@@ -75,7 +75,7 @@ Application / Project / Scenario
 
 `src/application/spaceProject.ts`의 `createSpaceProject` / `publishSpaceDocument`는 원본 문서와 core 프로젝트를 연결한다. 레이아웃은 `(id, revision)`으로 등록되고 기준 설정은 참조만 갖는다. 예전 revision을 고정한 시나리오는 새 공간 편집에 의해 바뀌지 않는다. 동일 문서의 반복 알림은 revision을 늘리지 않는다.
 
-이 연결 서비스는 **검토/단계 이동 등의 명시적 checkpoint**에서 사용할 API다. 매 포인터 이동에 새 revision을 등록하는 자동 저장 기능은 추가하지 않았다. 다른 PDF로 바꿀 때는 기존 매핑을 명시적으로 비우거나 다시 지정해야 한다. 전체 Project UI·영속 저장·통합 Wizard는 후속 작업이다. 현재 최상위 화면은 기존 SpaceWorkspace를 유지한다.
+이 연결 서비스는 **분석 실행 등의 명시적 checkpoint**에서 사용한다. 매 포인터 이동에 새 revision을 등록하는 자동 저장 기능은 추가하지 않았다. Phase 8의 `checkpointWorkflow`가 편집 문서·운영 매핑·후보지·설정을 등록하고, 문서 교체 시 매핑을 비운다. 영속 저장과 전체 Project JSON 복원은 후속 범위다.
 
 ### Project와 Scenario 사용 규칙
 
@@ -127,7 +127,7 @@ Core 함수들은 타입이 정해진 내부 호출 경계와 수치·참조 검
 | `modules/simulation` | `DiscreteEventSimulationEngine`; seeded 도착/서비스 이벤트·자원 경합·대기·종결 및 KPI |
 | `application/storeAnalysis.ts` | `analyzeStoreProject`; 명시적으로 설정된 기준 프로젝트의 Market → Demand → 준비 → DES → 완료/실패를 연결 |
 
-Application 서비스는 provider/model/engine을 주입받고 입력 Project를 복제한다. Market 실패 시 명시적 unavailable issue를 반환하고 demo로 자동 대체하지 않는다. 수요 재계산 후 새 Project 사본에 시장·수요를 저장하며 준비가 실패하면 엔진을 실행하지 않는다. engine 실패는 준비 snapshot을 보존하는 failed run으로 반환한다. 호출자가 ID·기간·시점을 제공한다. Phase 3~5의 이 API는 단일 실행을 담당하며, 시나리오 반복실험은 아래 Phase 6~7 API가 담당한다. 저장·Wizard UI는 후속 범위다.
+Application 서비스는 provider/model/engine을 주입받고 입력 Project를 복제한다. Market 실패 시 명시적 unavailable issue를 반환하고 demo로 자동 대체하지 않는다. 수요 재계산 후 새 Project 사본에 시장·수요를 저장하며 준비가 실패하면 엔진을 실행하지 않는다. engine 실패는 준비 snapshot을 보존하는 failed run으로 반환한다. 호출자가 ID·기간·시점을 제공한다. Phase 3~5의 이 API는 단일 실행을 담당하며, 시나리오 반복실험은 아래 Phase 6~7 API가 담당한다. Phase 8 화면은 같은 계약을 조합하며 저장 서버를 추가하지 않는다.
 
 Market의 확장 metadata와 Demand의 bucket breakdown은 기존 profile의 하위 타입이다. 기존 `MarketProvider.fetch`, `DemandModel.calculate`, `OperationModel`, `SimulationEngine.run`의 시그니처는 유지했다. 공통 schemaVersion은 1이며 기존 fixture는 다음 선택 필드 없이도 유효하다.
 
@@ -149,10 +149,26 @@ Market의 확장 metadata와 Demand의 bucket breakdown은 기존 profile의 하
 | `modules/financial` | `TransparentFinancialEngine`; 완료 run과 명시적 재무 가정의 월간 계산 |
 | `application/scenarioAnalysis.ts` | 시장 조회 → 시나리오별 수요 재계산 → DES 반복실험 → 집계·재무 → 비교 행 |
 
-`createComparisonScenarios`는 기존 Base + Overrides에 보수/기준/낙관/사용자 시나리오를 등록한다. 보수/낙관은 전환율 ±20%, 객단가 ±10%의 상대 변화이며 자동 예측치가 아니다. 객단가는 Financial 설정이 있으면 그 값을, 없으면 Operation 값을 사용한다. 범위를 넘는 상대 변화는 조용히 잘라내지 않고 거부한다.
+`createComparisonScenarios`는 기존 Base + Overrides에 보수/기준/낙관/사용자 시나리오를 등록한다. 보수/낙관은 전환율 ±20%, 객단가 ±10%의 상대 변화이며 자동 예측치가 아니다. 객단가는 Financial 설정이 있으면 그 값을, 없으면 Operation 값을 사용한다. 기본 API는 범위 초과를 거부한다. Phase 8 화면은 선택적 `boundConversionRate`로 낙관 전환율을 100%까지 제한하고 상한과 실제 적용 비율을 표시한다. 사용자 override는 계속 엄격히 검증한다.
 
 `compareStoreScenarios`는 시장 profile을 한 번 조회하고 각 시나리오를 동일 seed 목록으로 실행한다. 각 행에 관측 영업 구간의 기대 홀 고객/배달 주문, 분리된 run snapshot, 운영 집계·병목, 조건부 FinancialResult를 보존한다. 시장 실패나 실행 실패를 성공한 결과로 대체하지 않는다. 복수 영업일 유형의 월간 재무 계산은 FinancialEngine에 유형별 run과 day mix를 직접 전달할 수 있으며, 현재 비교 API의 한 시나리오는 한 dayType을 반복한다.
 
 최소 Core 확장은 모두 선택 필드다. `deliveryOrdersByHour`/`deliveryBuckets`는 orders/hour, `operation.delivery`는 포장 시간·대기 한도다. `OperationProcess.arrivalStreams` 및 `queueMetric`은 업종별 stage 이름 없이 채널별 진입과 대기 지표를 선언한다. `SimulationResult.delivery`는 독립 주문 보존·처리량을 제공하며 기존 customers 계열은 홀 고객만 의미한다. Financial의 추가 가격·수수료·day mix·인건비 방식·CAPEX 항목은 기존 필드와 함께 검증한다.
 
 이전 정책과 엔진 descriptor `1.0.0`의 호환성을 유지하고 추가 입력을 snapshot content key에 포함한다. 새 배달 동작은 명시적 입력으로 활성화된다. 장기 저장 및 엔진 알고리즘 변경 시 descriptor 갱신이 필요하다. `src/architecture.test.ts`는 Scenario와 Financial까지 순수 Core 의존성·UI 비의존성을 검사한다. 계산식과 한계는 [scenario-sensitivity.md](scenario-sensitivity.md), [financial-model.md](financial-model.md)에 기록한다.
+
+## Phase 8 제품 연결
+
+| 진입점 | 책임 |
+|---|---|
+| `product/SimulatorApp.tsx` | 현재 단계·후보지·설정·Space 세션·결과 상태와 명시적 실행 연결 |
+| `product/ProductShell.tsx`, `SiteStep.tsx` | 8단계 탐색, 현재 후보지와 준비/계산/재계산 상태, 후보지 입력 |
+| `product/SpaceStep.tsx` | 기존 편집기 조합, 도면 면적·정원·역할 매핑의 사용자 확인 |
+| `product/analysis/*` | Market/Demand/Scenario/Financial/Review 화면, 출처·단위·조건·실패 표시 |
+| `product/operation/OperationStep.tsx` | 실제 StoreLayout 위의 첫 실행 기록 재생; 화면 시계만 사용 |
+| `application/workflow.ts` | 명시적 예시 설정, 도면 checkpoint, 입력 내용 기반 freshness key |
+| `application/workflowAnalysis.ts`, `product/analysis.worker.ts` | 동일 도메인 API의 운영·비교·민감도·재무 실행을 Worker로 분리 |
+
+UI가 module 내부 renderer나 계산식을 복사하지 않는다. Core에는 선택적 `SimulationObservation`/`SimulationFrame`만 추가해 detached 상태 기록을 전달한다. 기록은 scheduler 이벤트나 RNG를 추가하지 않으며 첫 seed 실행만 30초 간격으로 수집한다. 프레임과 결과 snapshot은 별도 화면 상태다. 기록 재생은 이전 시각의 최근 프레임을 선택하며 모델을 재실행하지 않는다.
+
+입력 key는 후보지/시장/수요/도면/매핑/운영/재무/사용자 시나리오/민감도 변수의 의존 관계를 추적한다. 입력 수정은 진행 중 Worker를 취소하고, 이미 완료된 결과는 이전 조건의 자료로 표시한다. 시나리오와 재무가 최신이 아니면 검토 요약 내보내기를 제한한다. 데이터는 현재 브라우저 메모리에만 있으며 `store-review.json`은 검토 요약, FloorPlan JSON은 기존 편집 문서다. UI 사용법과 제한은 [product-workflow.md](product-workflow.md)에 기록한다.

@@ -35,7 +35,7 @@ arrival → seating queue → table + seat assignment (0 seconds)
 - 관측 시작 전/종료 후 및 영업 window 밖 candidate는 제외한다. 영업시간 밖 잠재 고객은 실제 도착이나 lost로 세지 않는다. 영업 종료 전 입장한 고객은 horizon까지 계속 처리한다. Deterministic phase는 영업 재개 때 임의 초기화하지 않는다.
 - Restaurant은 입력 서비스 시간을 constant duration으로 사용한다. Generic process는 positive-mean exponential 또는 nonnegative constant 분포를 지원한다. Restaurant의 6개 서비스 시간은 양수이며 착석/terminal만 0초다.
 - seed는 unsigned 32-bit 정수다. PRNG는 seed와 arrival hour/party-size hour/service entity·stage key에서 독립 stream을 만든다. `Math.random`, 현재 시간, 전역 RNG를 사용하지 않는다. capacity 변경으로 서비스 draw가 arrival draw를 소비하지 않는다.
-- 한 `run`은 한 replication이다. `replications > 1`은 명시적으로 거부한다. `modules/scenario`가 seed/ID별 snapshot을 준비하고 복수 실행을 집계한다. [반복실험·민감도](scenario-sensitivity.md)를 참조한다. Monte Carlo parameter uncertainty와 UI는 후속 범위다.
+- 한 `run`은 한 replication이다. `replications > 1`은 명시적으로 거부한다. `modules/scenario`가 seed/ID별 snapshot을 준비하고 복수 실행을 집계한다. [반복실험·민감도](scenario-sensitivity.md)를 참조한다. Phase 8 UI가 반복실험과 재생을 연결하며 Monte Carlo parameter uncertainty는 후속 범위다.
 - 실행 보호 한도는 candidate parties 100,000 및 시간당 expected party rate 100,000이다. 초과는 명시 오류이며 임의로 수요를 잘라 성공 결과를 만들지 않는다.
 
 ## 종료와 KPI
@@ -101,3 +101,13 @@ Generic scheduler는 `arrivalStreams`의 channel/startStageId와 stage의 `queue
 대기 평균에는 horizon까지 누적된 미완료 대기를 포함한다. 병목 설명은 홀 customer-seconds와 배달 order-seconds를 분리하여 표시하며 서로 다른 단위를 합산하지 않는다. 이 지표는 관측된 blocking이고 최대 물리적 용량의 증명이 아니다.
 
 Delivery D1(0 수요 호환), D2(주방 여유), D3(배달 증가로 홀 음식 대기 증가), D4(cook/slot 증설로 두 채널 개선), timeout/미완료/포장 FIFO/이름을 바꾼 generic process를 자동 검증한다. 매출과 수수료 계산은 독립 [FinancialEngine](financial-model.md)이 담당한다.
+
+## Phase 8 상태 기록과 재생
+
+`SimulationEngine.run`의 선택적 `observation: { intervalSeconds, onFrame }`는 `SimulationFrame`의 분리된 사본을 전달한다. 프레임에는 경과 seconds, 홀·배달별 누적 및 현재 인원/주문, 자원 사용량과 점유 unit index, 진행 중 entity의 channel·단계·배정이 들어 있다. 실제 테이블 index를 StoreLayout의 assignment 순서와 연결하므로 가상으로 테이블 점유를 생성하지 않는다.
+
+기록은 같은 시각의 completion/timeout/arrival 및 0초 후속 처리를 마친 상태를 담는다. 기록 시각에 새 이벤트를 넣거나 RNG를 소비하거나 자원 회계 시각을 변경하지 않는다. 간격은 양의 유한 seconds여야 하며 시작·종료를 포함해 최대 5,000개로 제한한다. 이 관찰 기능을 생략하면 이전 호출 계약과 결과가 유지된다.
+
+제품은 Worker에서 모든 반복실험을 계산하되 첫 seed 실행만 30초 간격으로 수집한다. 기본 10시간 실행은 1,201개 기록이다. 재생의 requestAnimationFrame과 1×/5×/20×/120×/600× 배속은 기록 선택 위치만 바꾸며 DES와 연결하지 않는다. 시각 사이에는 직전 기록을 유지하고 상태를 보간하지 않는다. 전체 이벤트 KPI는 30초 표본의 평균으로 다시 계산하지 않는다.
+
+운영 화면의 테이블·직원 `사용 / 설정 용량`은 해당 기록 시점의 상태다. 결과의 주방/테이블/직원 가동률은 전체 관측 시간의 평균이므로 구분한다. 홀 전체 대기는 입장 대기와 착석 후 대기를 포함하고, 배달은 별도 주문 단위다. 운영 화면의 첫 실행 결과와 시나리오·수익성의 반복 평균도 구분해 표시한다. 이전 결과를 재생할 때는 그 run의 도면과 clock을 사용하며 변경된 입력으로 다시 실행해야 최신 결과가 된다.

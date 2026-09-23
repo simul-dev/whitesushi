@@ -1,6 +1,6 @@
 # 시나리오·반복실험·민감도 모델
 
-Phase 6의 공개 API는 `src/modules/scenario/index.ts`다. React·PDF·3D·다른 엔진 내부 구현에 의존하지 않으며 Core의 `DemandModel`, `OperationModel`, `SimulationEngine`, 선택적 `FinancialEngine`을 주입받는다. 결과는 주어진 가정 아래의 비교 자료이며 미래 예측이나 자동 투자 판정이 아니다. 이번 단계에는 Dashboard/Wizard 화면을 추가하지 않는다.
+Phase 6의 공개 API는 `src/modules/scenario/index.ts`다. React·PDF·3D·다른 엔진 내부 구현에 의존하지 않으며 Core의 `DemandModel`, `OperationModel`, `SimulationEngine`, 선택적 `FinancialEngine`을 주입받는다. 결과는 주어진 가정 아래의 비교 자료이며 미래 예측이나 자동 투자 판정이 아니다. Phase 8의 시나리오 화면은 이 API를 Worker에서 실행해 비교 표와 민감도 곡선을 제공한다.
 
 ## Base + Overrides
 
@@ -127,4 +127,14 @@ export async function conversionExperiment(
 - 배달: 특정 시간의 독립 주문 증가가 홀 도착 수를 줄이지 않으면서 공유 주방을 통해 홀 음식 대기를 증가시킨다.
 - 같은 seed 재현성, 통계값, 불변성, 잘못된 계보·seed·비율·정원·미완료 집계 및 중간 실패 처리를 검증한다.
 
-Application의 Market 조회부터 비교 결과까지는 `src/application/scenarioAnalysis.ts`가 연결한다. 2-way sensitivity, 파라미터 불확실성 Monte Carlo, 자동 캘리브레이션, 최종 사용자 화면은 이번 범위에 포함하지 않는다.
+Application의 Market 조회부터 비교 결과까지는 `src/application/scenarioAnalysis.ts`가 연결한다. 2-way sensitivity, 파라미터 불확실성 Monte Carlo와 자동 캘리브레이션은 구현하지 않았다.
+
+## Phase 8 비교 화면
+
+`application/workflowAnalysis.ts`는 명시적으로 불러온 Demo Market profile을 재사용하고 같은 seed 목록으로 보수·기준·낙관·사용자 조건을 실행한다. 보수 조건은 기준 전환율 −20%·홀 객단가 −10%, 낙관 조건은 +20%·+10%의 상대 변화다. 화면의 낙관 전환율에는 명시적인 **100% 상한**을 적용하고 실제 적용 비율을 비교 표에 표시한다. 기준 90%는 낙관 100%로 비교한다. `createComparisonScenarios`의 선택적 `boundConversionRate`를 사용하며 생략한 기존 API 호출은 범위 초과를 계속 거부한다. 사용자 조건은 전환율/객단가의 상대 변화와 조리 인력·주방 동시 조리의 절대 수를 지정한다. 사용자 입력이 범위를 벗어나면 실행을 막으며 조용히 잘라내지 않는다.
+
+표는 운영 반복 평균과 최솟값–최댓값, 완료량 기반 월 매출·영업이익을 비교한다. 이 범위는 관측 범위이며 신뢰구간이 아니다. 민감도는 방문 전환율·좌석 정원·주방 동시 조리·홀 객단가 중 하나를 선택하고 홀 완료량·평균 대기 분·월 매출의 반응 곡선을 보여준다. 수치 x축은 실제 입력값 간격을 사용한다. 기준값을 표시하고 실패한 점은 0으로 잇지 않는다. 인력을 바꾸어도 고정 월 인건비는 유지되며, 인력 비용 연동이 필요하면 수익성의 계산 방식을 변경해야 한다.
+
+화면용 실험 지점은 기준값의 명시적 배수/증감에서 생성한다. 전환율은 0~1 범위, 좌석은 최소 테이블 수, 주방 비교는 최소 1개를 사용하고 중복 지점은 제거한다. 따라서 항상 5개 점이 되는 것은 아니다. 이는 UI의 실험 설계이며 사용자가 직접 지정한 도메인 override를 조용히 자르는 동작과 다르다. 좌석 실험은 실제 테이블 배치·통로 검증이 없는 정원 가정임을 함께 표시한다.
+
+비교·민감도 조건이 바뀌면 재계산 필요 상태를 표시한다. 처리량 곡선으로 수요 증가의 효과가 제한되는지 살펴볼 수 있지만 단일 곡선으로 최대 capacity나 투자 판정을 자동 확정하지 않는다.

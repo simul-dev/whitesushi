@@ -1,6 +1,6 @@
 # 단계별 개발 계획
 
-현재 구현 범위는 **Phase 0~7 + Delivery**다. 기존 UI와 FloorPlan 데이터 호환성을 보존하며 새 의존성을 추가하지 않는다. Phase 6/7의 도메인 엔진·통합 API를 제공하고 비교 Dashboard와 Phase 8 통합 Wizard는 후속 범위로 남긴다.
+현재 구현 범위는 **Phase 0~8 + Delivery**다. 기존 FloorPlan 편집·파일 호환성과 도메인 엔진을 보존하며 Phase 8에서 후보지부터 출점검토까지의 사용자 화면을 연결한다. 실제 상권 공급자, 서버 저장, 계정·다중 사용자 서비스는 후속 범위다.
 
 | Phase | 범위 | 완료 조건 | 상태 |
 |---|---|---|---|
@@ -8,11 +8,11 @@
 | 1 | Space 모듈 추출 | 동일 UI·동작·원본 데이터, 독립 공개 API, 회귀 통과 | 완료: 39 unit / 9 E2E / build (PDF lifecycle 보강 포함) |
 | 2 | Core / Project / Scenario / ports | 순수 계약, 안전한 override, 실행 추적·무효화, 어댑터, 테스트 | 완료: 전체 86 unit / 9 E2E / build / 배포 경로 smoke |
 | 3 | Market Intelligence | 실제/demo 출처 표시, 교체 가능한 provider | 구현 완료: 명시적 demo + 실패/timeout 경계 |
-| 4 | Demand Model | 유동인구 → 도착률, 가정 편집 | 구현 완료: 계산/metadata API, UI는 후속 |
+| 4 | Demand Model | 유동인구 → 도착률, 가정 편집 | 도메인 완료; Phase 8에서 UI 연결 |
 | 5 | Restaurant DES | seeded 이벤트 엔진, 자원 보존/KPI 검증 | 구현 완료: generic DES + Restaurant 과정 |
-| 6 | Scenario / Sensitivity | 명시적 override, seeded 반복실험·통계·1-way 분석 | 도메인 엔진 완료; 표·차트 UI는 후속 |
-| 7 | Financial | 채널별 비용·이익·손익분기·회수기간·가정 추적 | 도메인 엔진 완료; 투자 판정 없음 |
-| 8 | 통합 Workflow | Site→Space→Market→Demand→Simulation→Scenario→Financial→Decision | 후속 |
+| 6 | Scenario / Sensitivity | 명시적 override, seeded 반복실험·통계·1-way 분석 | 도메인 완료; Phase 8에서 비교·민감도 UI 연결 |
+| 7 | Financial | 채널별 비용·이익·손익분기·회수기간·가정 추적 | 도메인 완료; Phase 8에서 조건부 손익 UI 연결 |
+| 8 | 통합 Workflow | Site→Space→Market→Demand→Simulation→Scenario→Financial→Review | 구현; 통합 검증 결과는 아래 기록에 추가 |
 
 ## 검증 및 버전 관리
 
@@ -83,3 +83,28 @@ Phase 0 커밋 `566598f`, Phase 1 커밋 `3bbf019`, PDF 수명 보완 커밋 `12
 - 보호 PDF SHA-256은 시작/종료 모두 `099b552e4c15a548f9c75ecf5ed90c34c8a424ac128d0f400e78a28fb7e2d1f0`이다. `floorplan.json`, `public/sample.pdf`, `public/sample-plan.png`도 기존 SHA-256과 동일하다.
 
 각 엔진의 사용법·단위·한계는 [scenario-sensitivity.md](scenario-sensitivity.md), [financial-model.md](financial-model.md), [simulation-model.md](simulation-model.md)에 기록한다. 브라우저의 분석 Dashboard는 이번 단계에서 추가하지 않았다.
+
+## Phase 8 구현 및 검증 기록
+
+2026-09-23, 실제 시작 HEAD는 Windows 실행 스크립트 보완까지 포함한 `a815e90`이었다. Phase 6~7의 **275 unit / 9 browser / build**는 앞 단계의 검증 기준선이며 Phase 8 완료 시 **286 unit / 13 browser / production build**가 통과했다.
+
+실제 메인 1명과 서브에이전트 3명이 병렬 작업했다. A는 Product Shell·후보지와 탐색, B는 상권·수요·시나리오·수익성·출점검토 화면, C는 실제 운영 기록 수집과 재생을 담당했다. 메인은 공통 계약 최소 확장·Worker·입력 무효화·Space 연결·통합 회귀를 담당했다. 완료 후 B/C는 별도 브라우저 세션으로 화면과 오류 처리를, C는 입력 계보·취소·재무 분리를 교차 검토했다.
+
+- 8단계 탐색과 준비/계산/재계산 필요 상태, 현재 후보지 표시, 예시 상권의 명시적 실행을 추가했다.
+- 기존 Space 편집기를 유지하고 테이블 정원·출입구·주방·서비스 매핑 확인을 연결했다. 문서 교체 시 이전 매핑을 비우고, 단계 이동은 기존 편집 세션을 유지한다.
+- 운영·비교·민감도·재무를 Worker에서 실행한다. 재생은 첫 반복실험의 30초 간격 실제 상태를 조회하며 결과 계산과 분리한다.
+- 관측 처리량과 손익분기, 조건별 범위·민감도를 보여주며 출점 점수·자동 승인은 만들지 않는다.
+- 현재 브라우저 메모리와 두 JSON 내보내기 범위를 명시한다. 서버·인증·실제 상권 API·새 차트 의존성은 추가하지 않는다.
+- 구현·검증·문서·로컬 커밋 범위이며 원격 푸시·production 배포는 하지 않는다. 보호 대상 PDF와 공개 기준 도면 원본은 변경·fixture 추가 대상으로 사용하지 않는다.
+
+실행 및 확인 순서는 [product-workflow.md](product-workflow.md)를 따른다.
+
+### 최종 검증
+
+- 단위: **23개 파일 / 286개 통과**. 기존 275개에 실제 기록 5개, workflow 6개를 추가했다. 기록 활성화 여부에 따른 결과 완전 일치, frame 변조 격리, 고객·주문·자원 보존, 같은 시각 이벤트, immutable checkpoint, 비용 변경과 운영 분리, 네 민감도 변수, 높은 기준 전환율의 명시적 preset 상한을 검증했다.
+- 브라우저: **13개 통과**. 기존 Space 9개는 보존했으며 기존 단독 도면 진입 테스트 6개의 URL만 `?workspace=space`로 지정했다. 신규 4개는 실제 8단계 계산·JSON 저장·재계산 상태·재생 제어, 잘못된 입력 차단, 편집/undo 유지·문서 교체 후 매핑 재확인, 모바일 의존 단계·뒤로 가기·가로 넘침을 검증한다. 마지막 탐색창 크기 변경 보완 후 해당 모바일 테스트도 재통과했다.
+- `VITE_BASE_PATH=/whitesushi/` TypeScript + Vite production build 통과. `analysis.worker-*.js` 별도 번들을 생성한다.
+- 로컬 production preview `http://127.0.0.1:4184/whitesushi/`에서 `scripts/check-deployment.mjs` 통과: 후보지→Demo→수요→실제 분석 Worker→종료 시각 재생, 기존 157개 요소·PDF 업로드·오버레이 내장 JSON·GLB 1,391,688 bytes, 브라우저 오류 0. 원격 GitHub Pages에는 배포하지 않았다.
+- 통합 과정에서 숨긴 SVG 편집기의 0 크기 ResizeObserver가 무한대 viewBox를 만들던 문제를 수정했다. 숨긴 동안 마지막 유효 크기를 보존한다. 필수 브랜드가 비어 있을 때 검토 저장을 막고, 기존 분석 숫자를 새 조건의 값으로 다시 표시하지 않는다.
+- 데스크톱과 390px 모바일 화면을 실제 캡처·검토했다. 비교 표/그래프와 기존 공간 편집기는 내부 가로 이동을 제공하고 페이지 전체는 넘치지 않는다. 민감도 x축은 숫자 간격을 반영한다. 스크린샷은 `tmp/e2e/product/`, 별도 검토 기록은 `tmp/analysis-ui-review/`에 있다.
+- `floorplan.json`, `public/sample.pdf`, `public/sample-plan.png` SHA-256은 기존 기록과 같다. 보호 PDF SHA-256 `099b552e4c15a548f9c75ecf5ed90c34c8a424ac128d0f400e78a28fb7e2d1f0`도 그대로이며 fixture·커밋에서 제외했다. 새 dependency나 원격 설정 변경은 없다.

@@ -1,8 +1,8 @@
-# AI Store Simulator — Space
+# AI Store Simulator
 
-현재 범위는 **Phase 0~7 + Delivery: Space·Core·Market demo·Demand·Restaurant DES·반복실험·민감도·재무 엔진**입니다. 기존 Floor Plan to 3D 화면과 파일 호환성을 유지하며 분석 엔진은 UI 없이 실행합니다. 실제 상권 API와 통합 Wizard/Dashboard는 후속 범위입니다. 구조와 검증 기록은 [아키텍처](docs/architecture.md), [개발 계획](docs/development-plan.md), [시뮬레이션](docs/simulation-model.md), [시나리오·민감도](docs/scenario-sensitivity.md), [재무 모델](docs/financial-model.md)을 참조하세요.
+**계약하기 전에 먼저 열어보세요.** 후보 점포의 도면·상권 가정·홀과 배달 운영·조건별 수익을 연결하는 웹 MVP입니다. Phase 8에서 기존 Phase 0~7 + Delivery 엔진을 **후보지 → 공간설계 → 상권분석 → 수요가정 → 가상영업 → 시나리오 → 수익성 → 출점검토**의 8단계 화면으로 연결했습니다. 실제 상권 API, 서버 저장, 계정은 없습니다. 상권은 사용자가 명시적으로 불러오는 Demo 자료입니다.
 
-새 엔진의 진입점은 `src/application/scenarioAnalysis.ts`의 `createComparisonScenarios` / `compareStoreScenarios`입니다. Conservative·Baseline·Optimistic·Custom의 홀/배달 수요, 운영 집계, 월간 재무 결과를 반환합니다. 실행 가능한 전체 예제는 `src/application/scenarioAnalysis.test.ts`입니다. Windows PowerShell에서는 아래 스크립트 명령으로 확인합니다. 기존 단일 실행은 `analyzeStoreProject`를 계속 사용합니다. 브라우저 화면은 Space 편집기이며 이번 단계에서 분석 화면은 추가하지 않았습니다.
+처음 실행하는 순서와 각 화면의 의미는 [제품 사용 흐름](docs/product-workflow.md)에 정리했습니다. 구조와 계산 근거는 [아키텍처](docs/architecture.md), [개발 계획](docs/development-plan.md), [시뮬레이션](docs/simulation-model.md), [시나리오·민감도](docs/scenario-sensitivity.md), [재무 모델](docs/financial-model.md)을 참조하세요. UI 없는 공개 API와 `src/application/scenarioAnalysis.test.ts`의 통합 예제도 계속 사용할 수 있습니다.
 
 평면도 PDF를 원본과 비교하며 수정하고, **FloorPlan JSON을 기준으로 3D 모델과 정투영 이미지를 생성**하는 로컬 웹 MVP입니다. React + TypeScript + Vite, PDF.js, SVG, Three.js를 사용합니다. 서버·계정·유료 API가 필요 없으며 업로드한 파일은 브라우저 안에서 처리합니다.
 
@@ -15,14 +15,14 @@ Node.js **22.12 이상**이 필요합니다.
 Windows PowerShell에서 `node`/`npm`/`npx`를 찾지 못할 때는 프로젝트 폴더에서 다음 명령을 사용하세요. 스크립트가 `%USERPROFILE%\.local\node`의 portable Node.js를 찾아 실행하며 시스템 PATH는 변경하지 않습니다.
 
 ```powershell
-# 신규 시나리오·배달·재무 통합 테스트 (4개)
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1 -Task test src/application/scenarioAnalysis.test.ts
-
-# 기존 웹 화면 실행 (Task 생략 시 dev)
+# 8단계 웹 앱 실행 (Task 생략 시 dev)
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1
+
+# UI 연결 서비스 및 도메인 통합 테스트
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1 -Task test src/application/workflow.test.ts src/application/scenarioAnalysis.test.ts
 ```
 
-전체 단위 테스트는 `-Task test`, 빌드는 `-Task build`, 브라우저 테스트는 `-Task test:e2e`를 사용합니다. 위 통합 테스트는 터미널에서 엔진을 검증하며 새 Dashboard를 열지는 않습니다.
+전체 단위 테스트는 `-Task test`, 빌드는 `-Task build`, 브라우저 테스트는 `-Task test:e2e`, 빌드한 앱 실행은 `-Task preview`를 사용합니다. 테스트 명령은 터미널 검증이며 화면은 개발 서버 주소를 브라우저에서 열어 확인합니다.
 
 Node.js가 PATH에 등록된 환경에서는 다음 명령도 사용할 수 있습니다.
 
@@ -38,11 +38,22 @@ npm run build
 npm run preview
 ```
 
-`dist/`가 정적 배포 결과입니다. `file://` 대신 HTTP 서버로 제공해야 PDF worker와 모듈이 동작합니다. WebGL 2 지원 데스크톱 Chrome/Edge를 권장하며 최소 작업 화면 폭은 940px입니다.
+`dist/`가 정적 배포 결과입니다. `file://` 대신 HTTP 서버로 제공해야 PDF worker와 분석 worker가 동작합니다. 분석 화면과 탐색은 모바일 폭에 대응하며, 정밀한 도면 편집과 WebGL 2 기반 3D 검토는 데스크톱 Chrome/Edge를 권장합니다. 기존 도면 편집기만 열려면 <http://127.0.0.1:5173/?workspace=space>을 사용합니다.
+
+## 처음 한 번 확인하는 순서
+
+1. **후보지**에서 점포명·브랜드·주소를 입력합니다. 처음 연결된 도면은 백초밥 공개 샘플입니다.
+2. **공간설계**에서 실제 출입구·주방·서비스 거점과 테이블별 정원을 확인하고 확인 버튼을 누릅니다. 샘플의 테이블당 4석은 수정 가능한 예시입니다.
+3. **상권분석**에서 `Demo 상권 자료 불러오기`, **수요가정**에서 가정 확인 후 수요 계산을 실행합니다.
+4. **가상영업**에서 실행합니다. 첫 번째 반복실험의 30초 간격 운영 기록을 재생·일시정지·시간 이동으로 살펴봅니다. 재생 속도는 계산 결과에 영향을 주지 않습니다.
+5. **시나리오**에서 네 조건과 한 변수의 영향을 비교하고, **수익성**에서 가격·비용을 검토해 계산합니다.
+6. **출점검토**에서 근거를 모아 보고 `검토 결과 저장`으로 `store-review.json`을 내려받습니다.
+
+입력을 바꾸면 관련 결과에 재계산 필요 상태가 표시됩니다. 작업은 현재 브라우저 메모리에 있으므로 새로고침·종료 전 도면 JSON과 검토 자료를 저장하세요. 검토 자료 JSON은 요약 내보내기이며 전체 프로젝트를 다시 여는 백업 파일은 아닙니다.
 
 ## 도면 추가
 
-- 시작하면 백초밥 기준 JSON과 원본 이미지가 로드됩니다. 원본 PDF 링크, 전체 페이지 맞춤과 오버레이 투명도로 대조하세요.
+- **공간설계**에 백초밥 기준 JSON과 원본 이미지가 연결되어 있습니다. 원본 PDF 링크, 전체 페이지 맞춤과 오버레이 투명도로 대조하세요.
 - **PDF 업로드**: 기준 파일은 이름이 아닌 SHA256 일치로 식별합니다. PDF.js로 다시 렌더하고 해당 파일의 분석 초안을 불러옵니다.
 - 다른 PDF는 **페이지 선택 → 건물 영역의 두 모서리 → 치수를 아는 선분의 두 끝점 → 기준 거리(mm) → 초안 생성** 순으로 진행합니다.
 - 긴 평행 벡터선을 낮은 신뢰도의 **벽 후보**로만 제안합니다. 치수선·설비가 섞이거나 벽이 누락될 수 있습니다. 공간·문·창·가구는 수동 추가가 필요합니다.
@@ -97,6 +108,10 @@ JSON은 mm, GLB/GLTF는 glTF 표준에 따라 **m**입니다. 좌표 변환은 J
 ```text
 floorplan.json              기준 도면 데이터
 src/App.tsx                 애플리케이션 조합
+src/product/SimulatorApp.tsx 8단계 화면·현재 입력·결과 상태 연결
+src/product/analysis.worker.ts 분석 실행 Worker
+src/application/workflow.ts 도면 checkpoint·명시적 예시 설정·결과 무효화 키
+src/application/workflowAnalysis.ts 운영·비교·민감도·재무 실행
 src/core/index.ts           UI 독립 도메인·프로젝트·시나리오·실행 계약
 src/application/spaceProject.ts 원본 도면과 Project 연결
 src/modules/space/index.ts  순수 데이터 공개 API
@@ -120,6 +135,8 @@ docs/validation.md           검증 기록
 PDF 픽셀을 3D mesh로 변환하지 않습니다. 동일한 JSON으로 2D와 3D를 생성하며, 명시된 치수 안에 단순 파라메트릭 가구를 구성합니다.
 
 ## GitHub Pages 배포
+
+Phase 8 작업은 로컬 구현·검증 범위입니다. 원격 푸시나 실제 배포를 수행하지 않으면 기존 공개 사이트는 바뀌지 않습니다.
 
 `.github/workflows/pages.yml`이 `main` 푸시마다 Node 22에서 설치·테스트·빌드 후 `dist/`를 GitHub Pages에 배포합니다. 저장소 Settings → Pages의 배포 소스는 **GitHub Actions**입니다. 저장소 전용 경로는 Pages 설정에서 자동으로 전달되며 PDF 원본·배경·폰트·worker도 같은 경로를 사용합니다.
 

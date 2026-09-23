@@ -4,7 +4,7 @@ Phase 7의 `TransparentFinancialEngine` (`transparent-financial`, `1.0.0`)은 **
 
 이 엔진은 DES의 이벤트나 자원 구현을 참조하지 않는다. DES의 기존 `revenue=0`, `revenueStatus='not-modeled'`는 재무 입력으로 사용하지 않는다. 완료한 홀 **고객 수**와 배달 **주문 수**를 읽어 계산하며, 예상 도착 수요·이탈·관측 종료 시 미완료 물량에 매출을 부여하지 않는다. 홀 완료 기준은 기존 DES의 청소를 포함한 served terminal이고 배달 완료 기준은 포장 완료다.
 
-결과 `status`는 `conditional-estimate`다. 실제 수요 예측, 수익 보장, 투자 권고나 자동 GO/NO-GO 판정이 아니다. 이번 단계에는 재무 Dashboard UI가 없고 TypeScript API와 자동 테스트로 확인한다.
+결과 `status`는 `conditional-estimate`다. 실제 수요 예측, 수익 보장, 투자 권고나 자동 GO/NO-GO 판정이 아니다. TypeScript API와 자동 테스트에 더해 Phase 8의 수익성·시나리오·출점검토 화면에서 같은 계산 결과를 확인할 수 있다.
 
 ## 단위와 금액 해석
 
@@ -199,3 +199,11 @@ estimatedPaybackMonths = nonRefundableInvestment / operatingCashContribution
 - 일수 합계·요일·배수, 반복 ID·seed·관측 구간·운영·시나리오, 통화·결과 참조·snapshot·실행 상태 오류와 배달 가격/결과 누락 거부
 
 위 숫자는 단위 테스트용 작은 합성 값이며 실제 매장 수익 예측이나 가격 제안이 아니다. 테스트 실행 명령은 `npm test -- src/modules/financial/financial.test.ts`다.
+
+## Phase 8 화면 연결
+
+수익성 단계는 최신 가상영업의 완료 runs를 Worker의 동일 FinancialEngine에 전달한다. 홀 고객당·배달 주문당 금액, 월 영업일, 재료비·임차료·인건비를 기본 입력으로 보여주고 수수료·인건비 방식·투자비는 펼침 영역에서 수정한다. `%` 입력은 도메인 0~1 비율로 변환한다. 운영이 그대로이고 재무 가정만 바뀌면 DES를 반복하지 않고 수익성을 다시 계산할 수 있다.
+
+현재 UI는 선택한 한 dayType의 관측 구간을 대표 영업일로 사용한다. 기본값은 평일 10시간 × 월 26일이며 `runToDayMultiplier=1`이다. 요일을 바꾸면 월 day mix도 그 대표 요일 하나로 바뀐다. 관측 구간·월 일수·배수는 매출 결과 바로 위에 표시하며, 관측을 2시간으로 바꾸어도 자동으로 하루 전체 매출로 확대하지 않는다. 도메인의 여러 dayType 가중 계산 지원이 화면에서 자동 평일/주말 혼합을 수행한다는 뜻은 아니다.
+
+매출·비용·손익분기는 반복 평균에 기반하며 손익분기 필요량과 **관측 처리량**을 홀 명/영업일과 배달 건/영업일로 따로 표시한다. 최대 물리적 capacity를 단정하지 않는다. 회수기간 null과 그 사유, 보증금 제외, 초기 현금과 비회수성 투자의 차이도 유지한다. 요약 저장은 입력 변경 후 관련 분석이 최신일 때만 가능하다.
