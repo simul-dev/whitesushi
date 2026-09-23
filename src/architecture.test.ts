@@ -8,7 +8,7 @@ const core = path.join(root, "src/core");
 const space = path.join(root, "src/modules/space");
 const coreEntry = path.join(core, "index.ts");
 const spaceEntry = path.join(space, "index.ts");
-const engineModules = ["market", "demand", "operation", "simulation"].map(name => path.join(root, "src/modules", name));
+const engineModules = ["market", "demand", "operation", "simulation", "scenario", "financial"].map(name => path.join(root, "src/modules", name));
 const configFile = ts.readConfigFile(path.join(root, "tsconfig.json"), ts.sys.readFile);
 if (configFile.error) throw new Error("Architecture checks need a readable tsconfig.json");
 const options = ts.parseJsonConfigFileContent(configFile.config, ts.sys, root).options;

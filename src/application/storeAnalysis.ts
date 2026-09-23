@@ -19,7 +19,7 @@ export type StoreAnalysisOutcome =
 /**
  * Headless base-project pipeline. Defaults, timestamps and provider selection are
  * explicit caller decisions. A failed provider never silently becomes demo data.
- * Scenario/sensitivity orchestration belongs to the next phase.
+ * For replicated scenario comparison, use compareStoreScenarios in scenarioAnalysis.
  */
 export async function analyzeStoreProject(input: {
   project: Project;
