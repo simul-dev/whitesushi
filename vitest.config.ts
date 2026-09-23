@@ -1,2 +1,3 @@
 import { defineConfig } from "vitest/config";
-export default defineConfig({ test: { include: ["src/**/*.test.ts"] } });
+// DES integration suites are CPU-heavy; bound concurrency on high-core desktops and CI.
+export default defineConfig({ test: { include: ["src/**/*.test.ts"], maxWorkers: 2 } });

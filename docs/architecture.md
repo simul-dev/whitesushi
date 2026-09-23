@@ -172,7 +172,9 @@ Market의 확장 metadata와 Demand의 bucket breakdown은 기존 profile의 하
 
 UI가 module 내부 renderer나 계산식을 복사하지 않는다. Core에는 선택적 `SimulationObservation`/`SimulationFrame`만 추가해 detached 상태 기록을 전달한다. 기록은 scheduler 이벤트나 RNG를 추가하지 않으며 첫 seed 실행만 30초 간격으로 수집한다. 프레임과 결과 snapshot은 별도 화면 상태다. 기록 재생은 이전 시각의 최근 프레임을 선택하며 모델을 재실행하지 않는다.
 
-입력 key는 후보지/시장/수요/도면/매핑/운영/재무/사용자 시나리오/민감도 변수의 의존 관계를 추적한다. 입력 수정은 진행 중 Worker를 취소하고, 이미 완료된 결과는 이전 조건의 자료로 표시한다. 시나리오와 재무가 최신이 아니면 검토 요약 내보내기를 제한한다. 데이터는 현재 브라우저 메모리에만 있으며 `store-review.json`은 검토 요약, FloorPlan JSON은 기존 편집 문서다. UI 사용법과 제한은 [product-workflow.md](product-workflow.md)에 기록한다.
+입력 key는 후보지/시장/수요/도면/매핑/운영/재무/사용자 시나리오/민감도 변수의 의존 관계를 추적한다. 입력 수정은 진행 중 Worker를 취소하고, 이미 완료된 결과는 이전 조건의 자료로 표시한다. 후속 영업용 UI는 550ms 뒤 `refresh` 요청으로 필요한 결과를 자동 갱신하며 입력 key가 같은 계산은 재사용한다. 시나리오와 재무가 최신이 아니면 제안서 내보내기를 제한한다. 데이터는 현재 브라우저 메모리에만 있으며 엑셀 제안서는 검토 자료, FloorPlan JSON은 기존 편집 문서다. UI 사용법과 제한은 [product-workflow.md](product-workflow.md)에 기록한다.
+
+`application/exportProposal.ts`는 디자인된 `public/proposal-template.xlsx`의 로고·스타일·인쇄 설정을 보존하고 현재 계산값을 셀에 채운다. 기존 `fflate`로 브라우저 안에서 OOXML을 압축/해제하며 서식 파일은 `publicAsset`으로 배포 경로를 적용한다. 숫자 유효성과 필수 셀을 검증하고 사용자 문자열은 XML로 이스케이프한 inline string으로 기록한다. 새 런타임 의존성이나 보고서 서버는 없다.
 
 ### 테스터 preset과 자동 준비
 

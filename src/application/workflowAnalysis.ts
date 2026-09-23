@@ -1,4 +1,4 @@
-import { resolveScenario, type FinancialAssumption, type Project, type SimulationFrame, type SimulationRun } from "../core";
+import { resolveScenario, type MarketProfile, type FinancialAssumption, type Project, type SimulationFrame, type SimulationRun } from "../core";
 import { TransparentDemandModel } from "../modules/demand";
 import { TransparentFinancialEngine, type FinancialAnalysisResult } from "../modules/financial";
 import { MockMarketProvider } from "../modules/market";
@@ -9,14 +9,24 @@ import { compareStoreScenarios, createComparisonScenarios, type ScenarioComparis
 import type { CustomScenarioInputs, SensitivityChoice } from "./workflow";
 import { prepareTesterSample, type TesterSampleInput } from "./testerSample";
 
+type Cached<T> = { key: string; value: T };
+export interface WorkflowRefreshCache {
+  operation?: Cached<ScenarioEvaluation<FinancialAnalysisResult>> | null;
+  frames?: SimulationFrame[];
+  financial?: Cached<FinancialAnalysisResult> | null;
+  comparison?: Cached<ScenarioComparison<FinancialAnalysisResult>> | null;
+  sensitivity?: Cached<SensitivityResult<FinancialAnalysisResult>> | null;
+}
+
 export type WorkflowAnalysisRequest =
   | { kind: "sample"; input: TesterSampleInput }
+  | { kind: "refresh"; input: TesterSampleInput; market: MarketProfile | null; cache: WorkflowRefreshCache }
   | { kind: "operation"; project: Project; now: string }
   | { kind: "comparison"; project: Project; custom: CustomScenarioInputs; now: string }
   | { kind: "sensitivity"; project: Project; parameter: SensitivityChoice; now: string }
   | { kind: "financial"; runs: SimulationRun[]; assumption: FinancialAssumption };
 export type WorkflowAnalysisResult =
-  | { kind: "sample"; prepared: Awaited<ReturnType<typeof prepareTesterSample>>;
+  | { kind: "sample" | "refresh"; prepared: Awaited<ReturnType<typeof prepareTesterSample>>;
       evaluation: ScenarioEvaluation<FinancialAnalysisResult>; frames: SimulationFrame[];
       comparison: ScenarioComparison<FinancialAnalysisResult>; sensitivity: SensitivityResult<FinancialAnalysisResult>; financial: FinancialAnalysisResult }
   | { kind: "operation"; evaluation: ScenarioEvaluation<FinancialAnalysisResult>; frames: SimulationFrame[] }
@@ -33,17 +43,25 @@ const modules = {
 
 /** Same pure engines as the headless API, executed in a worker by the product. */
 export async function executeWorkflowAnalysis(request: WorkflowAnalysisRequest): Promise<WorkflowAnalysisResult> {
-  if (request.kind === "sample") {
-    const prepared = await prepareTesterSample(request.input);
+  if (request.kind === "sample" || request.kind === "refresh") {
+    const prepared = await prepareTesterSample(request.input, request.kind === "refresh" ? request.market : null);
     const { now, session, custom } = prepared;
-    const operation = await executeWorkflowAnalysis({ kind: "operation", project: session.project, now });
+    const cache = request.kind === "refresh" ? request.cache : {};
+    const operation = cache.operation?.key === prepared.keys.operation && cache.operation.value.ok
+      ? { kind: "operation" as const, evaluation: cache.operation.value, frames: cache.frames ?? [] }
+      : await executeWorkflowAnalysis({ kind: "operation", project: session.project, now });
     if (operation.kind !== "operation" || !operation.evaluation.ok) throw new Error("샘플 가상영업을 준비하지 못했습니다.");
-    const comparison = await executeWorkflowAnalysis({ kind: "comparison", project: session.project, custom, now });
+    const comparison = cache.comparison?.key === prepared.keys.comparison && cache.comparison.value.ok
+      ? { kind: "comparison" as const, comparison: cache.comparison.value }
+      : await executeWorkflowAnalysis({ kind: "comparison", project: session.project, custom, now });
     if (comparison.kind !== "comparison" || !comparison.comparison.ok) throw new Error("샘플 시나리오 비교를 준비하지 못했습니다.");
-    const sensitivity = await executeWorkflowAnalysis({ kind: "sensitivity", project: session.project, parameter: prepared.sensitivity, now });
+    const sensitivity = cache.sensitivity?.key === prepared.keys.sensitivity
+      ? { kind: "sensitivity" as const, sensitivity: cache.sensitivity.value }
+      : await executeWorkflowAnalysis({ kind: "sensitivity", project: session.project, parameter: prepared.sensitivity, now });
     if (sensitivity.kind !== "sensitivity" || !sensitivity.sensitivity.results.every(point => point.evaluation.ok)) throw new Error("샘플 민감도를 준비하지 못했습니다.");
-    const financial = modules.financialEngine.calculate({ simulationRuns: operation.evaluation.runs, assumption: prepared.configuration.financial });
-    return { kind: "sample", prepared, evaluation: operation.evaluation, frames: operation.frames,
+    const financial = cache.financial?.key === prepared.keys.financial ? cache.financial.value
+      : modules.financialEngine.calculate({ simulationRuns: operation.evaluation.runs, assumption: prepared.configuration.financial });
+    return { kind: request.kind, prepared, evaluation: operation.evaluation, frames: operation.frames,
       comparison: comparison.comparison, sensitivity: sensitivity.sensitivity, financial };
   }
   if (request.kind === "financial") return { kind: "financial", financial: modules.financialEngine.calculate({ simulationRuns: request.runs, assumption: request.assumption }) };

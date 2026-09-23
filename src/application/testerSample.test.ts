@@ -3,6 +3,7 @@ import { canonicalJson } from "../core";
 import { createTesterSampleInput } from "./testerSample";
 import { executeWorkflowAnalysis } from "./workflowAnalysis";
 import { sampleWorkflowSession, workflowInputKeys } from "./workflow";
+import type { MarketIntelligenceProfile } from "../modules/market";
 
 describe("ready-to-use Myongji tester sample", () => {
   it("prepares all stages from the supplied identity and real engines without relabelling example geometry", async () => {
@@ -16,7 +17,7 @@ describe("ready-to-use Myongji tester sample", () => {
     const { prepared, evaluation, frames, financial, comparison, sensitivity } = result;
     expect(prepared.market.provenance.kind).toBe("demo");
     expect(prepared.market.siteRef).toEqual({ id: prepared.session.project.site.id, revision: prepared.session.project.site.revision });
-    expect(prepared.market.location.address).toBe(input.candidate.address);
+    expect((prepared.market as MarketIntelligenceProfile).location.address).toBe(input.candidate.address);
     expect(prepared.market.buckets).toHaveLength(72);
     expect(prepared.demand.buckets).toHaveLength(72);
     expect(prepared.keys).toEqual(workflowInputKeys({ ...input, plan: input.session.document, mapping: input.session.mapping, market: prepared.market }));

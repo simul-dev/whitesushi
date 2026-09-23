@@ -1,5 +1,6 @@
 import { useId, type FormEvent, type ReactNode } from "react";
 import { ArrowRight, FileUp } from "lucide-react";
+import { publicAsset } from "../assets";
 import type { CandidateDetails } from "./types";
 
 export interface SiteStepProps {
@@ -28,9 +29,12 @@ export function SiteStep({ value, onChange, onContinue, onOpenSpace, preview, ha
   }
   return <div className="product-page product-site-page">
     <div className="product-site-intro">
+      <div className="product-site-intro-copy">
       <p className="product-eyebrow">01 / 후보지 등록</p>
-      <h1>계약하기 전에<br />먼저 열어보세요<span>.</span></h1>
-      <p className="product-site-lead">검토 중인 공간에 우리 브랜드 매장을 담아보세요.<br className="product-desktop-break" /> 하루의 운영부터 수익구조까지, 하나의 흐름으로 살펴봅니다.</p>
+      <h1>계약하기 전에, 먼저 열어보세요<span>.</span></h1>
+      <p className="product-site-lead">우리 매장의 공간부터 하루의 영업, 수익구조까지 한 흐름으로 검토합니다.</p>
+      </div>
+      <div className="product-site-brand"><img src={publicAsset("baek-sushi-logo.jpg")} alt="백초밥 브랜드 로고" width={753} height={656} /><span>다음 매장을 위한<br /><strong>출점 검토</strong></span></div>
     </div>
 
     <div className="product-site-body">
@@ -56,7 +60,7 @@ export function SiteStep({ value, onChange, onContinue, onOpenSpace, preview, ha
             <small>참고 면적이며 도면의 측정값과 구분합니다.</small>
           </label>
           <label className="product-field product-field-wide" htmlFor={`${id}-notes`}><span>검토 메모 <small>선택</small></span>
-            <textarea className="product-input product-textarea" id={`${id}-notes`} rows={3} maxLength={2000} placeholder="층수, 전면 길이, 임대조건 등 확인할 내용을 남겨주세요." value={value.notes} onChange={event => onChange({ ...value, notes: event.target.value })} />
+            <textarea className="product-input product-textarea" id={`${id}-notes`} rows={2} maxLength={2000} placeholder="층수, 전면 길이, 임대조건 등 확인할 내용을 남겨주세요." value={value.notes} onChange={event => onChange({ ...value, notes: event.target.value })} />
           </label>
         </div>
         <div className="product-site-continue"><button className="product-button product-button-primary" type="submit">공간설계로 계속 <ArrowRight size={16} /></button><p>다음 단계에서 도면과 공간을 확인합니다.</p></div>

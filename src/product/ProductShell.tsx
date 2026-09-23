@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { ArrowUpRight, X } from "lucide-react";
+import { publicAsset } from "../assets";
 import type { CandidateDetails, StepStatus, WorkflowStep } from "./types";
 import "./product.css";
 
@@ -9,13 +10,13 @@ export const WORKFLOW_STEPS: readonly { id: WorkflowStep; label: string }[] = [
   { id: "market", label: "상권분석" },
   { id: "demand", label: "수요가정" },
   { id: "operation", label: "가상영업" },
-  { id: "scenario", label: "시나리오" },
-  { id: "financial", label: "수익성" },
+  { id: "financial", label: "수익성 분석" },
+  { id: "scenario", label: "시나리오 비교" },
   { id: "review", label: "출점검토" },
 ];
 
 const STATUS_LABELS: Record<StepStatus, string> = {
-  empty: "미설정", ready: "준비됨", stale: "재계산 필요", running: "계산 중",
+  empty: "미설정", ready: "준비됨", stale: "갱신 대기", running: "반영 중",
 };
 
 export interface ProductShellProps {
@@ -54,16 +55,16 @@ export function ProductShell({ candidate, step, statuses, onNavigate, children, 
       <a className="product-skip-link" href="#product-content" onClick={event => { event.preventDefault(); content.current?.focus(); content.current?.scrollIntoView(); }}>본문으로 이동</a>
       <header className="product-header">
         <div className="product-header-inner">
-          <button className="product-wordmark" type="button" onClick={() => onNavigate("site")} aria-label="AI Store Simulator 후보지로 이동">
-            <span className="product-logo" aria-hidden="true"><span /><span /><span /></span>
-            <span>AI Store <strong>Simulator</strong><small>계약 전, 매장의 가능성을 검토하다</small></span>
+          <button className="product-wordmark" type="button" onClick={() => onNavigate("site")} aria-label="백초밥 출점 시뮬레이터 후보지로 이동">
+            <img className="product-brand-logo" src={publicAsset("baek-sushi-logo.jpg")} alt="백초밥" width={753} height={656} />
+            <span><strong>출점 시뮬레이터</strong><small>AI STORE SIMULATOR</small></span>
           </button>
           <div className="product-project-context" aria-label="현재 후보지">
             <span className="product-context-label">검토 중인 후보지</span>
             <strong title={candidate.projectName}>{candidate.projectName.trim() || "새 후보지"}</strong>
             <span className="product-context-address" title={candidate.address}>{candidate.address.trim() || "후보지 주소를 입력하세요"}</span>
           </div>
-          <div className="product-workspace-label"><span aria-hidden="true" />출점 검토 워크스페이스</div>
+          <div className="product-workspace-label"><span aria-hidden="true" />가맹 개발 · 출점 검토</div>
         </div>
       </header>
 
@@ -88,7 +89,7 @@ export function ProductShell({ candidate, step, statuses, onNavigate, children, 
       </div>}
 
       <main ref={content} id="product-content" className={`product-main product-main-${step}`} tabIndex={-1} aria-busy={Boolean(busy)}>{children}</main>
-      <footer className="product-footer"><span>AI Store Simulator</span><p>공간과 가정을 연결해, 출점 검토의 근거를 만듭니다.</p><button type="button" onClick={() => onNavigate("review")}>검토 내용 모아보기 <ArrowUpRight size={14} /></button></footer>
+      <footer className="product-footer"><span>백초밥 · AI Store Simulator</span><p>공간과 가정을 연결해, 출점 검토의 근거를 만듭니다.</p><button type="button" onClick={() => onNavigate("review")}>검토 내용 모아보기 <ArrowUpRight size={14} /></button></footer>
     </div>
   );
 }

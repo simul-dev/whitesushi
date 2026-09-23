@@ -14,7 +14,7 @@ export function StepHeading({ number, title, description, action }: { number: st
 export function AnalysisStatus({ busy, stale, error, disabledReason }: AnalysisStatusProps) {
   return <div aria-live="polite" className="analysis-status">
     {busy && <p className="analysis-notice">입력한 조건으로 계산하고 있습니다.</p>}
-    {stale && <p className="analysis-notice analysis-notice-warning">조건이 변경되었습니다. 아래는 이전 결과이며 다시 계산해야 합니다.</p>}
+    {stale && !busy && <p className="analysis-notice analysis-notice-warning">변경한 조건을 자동 반영합니다. 갱신 전까지 이전 결과를 표시합니다.</p>}
     {error && <p className="analysis-notice analysis-notice-error" role="alert">{error}</p>}
     {disabledReason && <p className="analysis-note">{disabledReason}</p>}
   </div>;

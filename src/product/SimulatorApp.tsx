@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  updateProjectBase, type DemandProfile, type MarketProfile, type SimulationFrame, type Site,
+  type DemandProfile, type MarketProfile, type SimulationFrame, type Site,
 } from "../core";
 import {
-  checkpointWorkflow, sanitizeMapping, workflowInputKeys,
+  checkpointWorkflow, sanitizeMapping, workflowInputKeys, isValidCandidateArea,
   type CandidateDetails, type CustomScenarioInputs, type SensitivityChoice,
 } from "../application/workflow";
 import type { WorkflowAnalysisRequest, WorkflowAnalysisResult, WorkflowWorkerReply } from "../application/workflowAnalysis";
 import type { ScenarioComparison } from "../application/scenarioAnalysis";
-import { MockMarketProvider, fetchMarketProfile } from "../modules/market";
-import { TransparentDemandModel } from "../modules/demand";
 import type { FinancialAnalysisResult } from "../modules/financial";
 import type { ScenarioEvaluation, SensitivityResult } from "../modules/scenario";
 import { toStoreLayout, type FloorPlan, type LayoutMapping } from "../modules/space";
@@ -23,7 +21,7 @@ import type { StepStatus, WorkflowStep } from "./types";
 import { createTesterSampleInput } from "../application/testerSample";
 
 const initialStep = (): WorkflowStep => WORKFLOW_STEPS.find(s => s.id === window.location.hash.slice(1))?.id ?? "site";
-const jobNames = { sample: "백초밥 명지점 체험용 상권·영업·수익성 결과를 준비하고 있습니다…", market: "예시 상권 자료를 준비하고 있습니다…", operation: "같은 조건으로 가상영업을 반복하고 있습니다…", comparison: "네 가지 운영 조건을 비교하고 있습니다…", sensitivity: "한 가지 가정의 영향을 비교하고 있습니다…", financial: "완료된 영업 결과로 수익구조를 계산하고 있습니다…" };
+const jobNames = { sample: "백초밥 명지점의 샘플 분석을 준비하고 있습니다…", refresh: "변경한 조건을 관련 분석에 자동 반영하고 있습니다…", operation: "가상영업을 계산하고 있습니다…", comparison: "운영 조건을 비교하고 있습니다…", sensitivity: "가정의 영향을 비교하고 있습니다…", financial: "수익구조를 계산하고 있습니다…" };
 type Job = keyof typeof jobNames;
 type Stamped<T> = { value: T; key: string };
 
@@ -51,6 +49,8 @@ export default function SimulatorApp() {
   const [comparison, setComparison] = useState<Stamped<ScenarioComparison<FinancialAnalysisResult>> | null>(null);
   const [sensitivity, setSensitivity] = useState<Stamped<SensitivityResult<FinancialAnalysisResult>> | null>(null);
   const [job, setJob] = useState<Job | null>(null), [error, setError] = useState("");
+  const [invalidDraft, setInvalidDraft] = useState(false), [exporting, setExporting] = useState(false);
+  const lastAutoAttempt = useRef("");
   const worker = useRef<Worker | null>(null), requestVersion = useRef(0);
   const keys = useMemo(() => workflowInputKeys({ candidate, plan, mapping, configuration, market: market?.value ?? null, custom, sensitivity: sensitivityParameter }), [candidate, plan, mapping, configuration, market, custom, sensitivityParameter]);
   const layout = useMemo(() => {
@@ -58,7 +58,7 @@ export default function SimulatorApp() {
       documentId: session.documentId, documentRevision: session.documentRevision, mapping: sanitizeMapping(plan, mapping) }); }
     catch { return null; }
   }, [plan, mapping, session]);
-  const readySite = !!candidate.projectName.trim() && !!candidate.brandName.trim() && !!candidate.address.trim();
+  const readySite = !!candidate.projectName.trim() && !!candidate.brandName.trim() && !!candidate.address.trim() && isValidCandidateArea(candidate.knownAreaM2);
   const marketStale = !!market && (!readySite || market.key !== keys.site);
   const demandStale = !!demand && (demand.key !== keys.demand || marketStale);
   const operationStale = !!operation && (operation.key !== keys.operation || !spaceReady || marketStale || demandStale);
@@ -66,20 +66,33 @@ export default function SimulatorApp() {
   const comparisonStale = !!comparison && (comparison.key !== keys.comparison || !spaceReady || marketStale || demandStale);
   const sensitivityStale = !!sensitivity && (sensitivity.key !== keys.sensitivity || !spaceReady || marketStale || demandStale);
   const analysisBlock = !readySite ? "site" : "";
-  const operationBlock = !readySite ? "site" : !spaceReady ? "space" : !market || marketStale ? "market" : !demand || demandStale ? "demand" : "";
-  const blockMessages: Record<string, string> = { site: "후보지에서 점포명·브랜드·주소를 먼저 입력해 주세요.", space: "공간설계에서 출입구와 좌석 정원을 확인해 주세요.", market: "상권분석에서 현재 후보지의 자료를 불러와 주세요.", demand: "수요가정에서 변경한 가정으로 유입 수요를 계산해 주세요." };
+  const operationBlock = !readySite ? "site" : !spaceReady ? "space" : "";
+  const blockMessages: Record<string, string> = { site: !isValidCandidateArea(candidate.knownAreaM2) ? "후보지 면적은 0.1 m² 이상으로 입력하거나 비워 주세요." : "후보지에서 점포명·브랜드·주소를 먼저 입력해 주세요.", space: "공간설계에서 출입구와 좌석 정원을 확인해 주세요." };
 
   const cancelTask = useCallback((edited = true) => {
     requestVersion.current++; worker.current?.terminate(); worker.current = null; setJob(null); setError("");
-    if (edited) setSampleStatus("edited");
+    if (edited) { setSampleStatus("edited"); lastAutoAttempt.current = ""; }
   }, []);
   useEffect(() => {
     // Each StrictMode setup owns a new generation; edits cancel the whole transaction.
     startWorker({ kind: "sample", input: initial }, "");
     return () => { requestVersion.current++; worker.current?.terminate(); worker.current = null; };
   }, [initial]);
-  useEffect(() => { const listener = () => setStep(initialStep()); window.addEventListener("hashchange", listener); return () => window.removeEventListener("hashchange", listener); }, []);
+  useEffect(() => {
+    if (!readySite || !spaceReady || invalidDraft || job || sampleStatus === "loading") return;
+    if (market && demand && operation?.value.ok && financial && comparison?.value.ok && sensitivity &&
+      !marketStale && !demandStale && !operationStale && !financialStale && !comparisonStale && !sensitivityStale) {
+      if (sampleStatus !== "ready") setSampleStatus("ready");
+      return;
+    }
+    const attempt = keys.comparison + keys.sensitivity;
+    if (lastAutoAttempt.current === attempt) return;
+    const timer = window.setTimeout(() => { lastAutoAttempt.current = attempt; refreshAll(); }, 550);
+    return () => window.clearTimeout(timer);
+  }, [keys.comparison, keys.sensitivity, candidate, readySite, spaceReady, invalidDraft, job, sampleStatus]);
+  useEffect(() => { const listener = () => { setInvalidDraft(false); setStep(initialStep()); }; window.addEventListener("hashchange", listener); return () => window.removeEventListener("hashchange", listener); }, []);
   function navigate(next: WorkflowStep) {
+    setInvalidDraft(false);
     setStep(next); window.history.pushState(null, "", `${window.location.pathname}${window.location.search}#${next}`);
     window.scrollTo({ top: 0, behavior: "instant" });
   }
@@ -93,27 +106,6 @@ export default function SimulatorApp() {
   function checkpoint(currentMarket: MarketProfile | null = market?.value ?? null) {
     const next = checkpointWorkflow({ session, candidate, plan, mapping, configuration, market: currentMarket, now: new Date().toISOString() });
     setSession(next); return next;
-  }
-  async function loadMarket() {
-    cancelTask(); const version = ++requestVersion.current; setJob("market");
-    try {
-      const current = checkpoint(null), now = new Date();
-      const outcome = await fetchMarketProfile(new MockMarketProvider(), { site: current.project.site,
-        period: { from: new Date(now.getTime() - 28 * 86400000).toISOString(), to: now.toISOString() } });
-      if (version !== requestVersion.current) return;
-      if (outcome.status === "unavailable") throw new Error(outcome.issues.map(i => i.message).join(" · "));
-      setMarket({ value: outcome.profile, key: keys.site });
-      setSession({ ...current, project: updateProjectBase(current.project, { market: outcome.profile }, now.toISOString()) });
-    } catch (e) { if (version === requestVersion.current) setError(e instanceof Error ? e.message : String(e)); }
-    finally { if (version === requestVersion.current) setJob(null); }
-  }
-  function calculateDemand() {
-    cancelTask();
-    try {
-      if (!market || marketStale) throw new Error(blockMessages.market);
-      const profile = new TransparentDemandModel().calculate({ market: market.value, parameters: configuration.demandParameters });
-      setDemand({ value: profile, key: keys.demand });
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   }
   function startWorker(request: WorkflowAnalysisRequest, stamp: string) {
     cancelTask(false); const version = ++requestVersion.current; setJob(request.kind);
@@ -133,7 +125,8 @@ export default function SimulatorApp() {
   }
   function acceptResult(result: WorkflowAnalysisResult, stamp: string) {
     switch (result.kind) {
-      case "sample": {
+      case "sample":
+      case "refresh": {
         const prepared = result.prepared, stamps = prepared.keys;
         setSession(prepared.session);
         setMarket({ value: prepared.market, key: stamps.site });
@@ -153,50 +146,46 @@ export default function SimulatorApp() {
       case "financial": setFinancial({ value: result.financial, key: stamp }); break;
     }
   }
-  function runAnalysis(kind: "operation" | "comparison" | "sensitivity") {
+  function refreshAll() {
     try {
-      if (operationBlock) throw new Error(blockMessages[operationBlock]);
-      const current = checkpoint(), now = new Date().toISOString();
-      if (kind === "operation") startWorker({ kind, project: current.project, now }, keys.operation);
-      else if (kind === "comparison") startWorker({ kind, project: current.project, custom, now }, keys.comparison);
-      else startWorker({ kind, project: current.project, parameter: sensitivityParameter, now }, keys.sensitivity);
+      if (!readySite || !spaceReady) throw new Error(blockMessages[!readySite ? "site" : "space"]);
+      if (invalidDraft) return;
+      const currentMarket = !marketStale ? market?.value ?? null : null;
+      const current = checkpoint(currentMarket), now = new Date().toISOString();
+      startWorker({ kind: "refresh", input: { now, session: current, candidate, configuration, custom, sensitivity: sensitivityParameter },
+        market: currentMarket, cache: { operation, frames, financial, comparison, sensitivity } }, "");
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   }
-  function calculateFinancial() {
-    if (!operation?.value.ok || operationStale) { setError("가상영업에서 현재 조건으로 먼저 실행해 주세요."); return; }
-    startWorker({ kind: "financial", runs: operation.value.runs, assumption: configuration.financial }, keys.financial);
-  }
+  const updating = job === "sample" || job === "refresh";
   const status = (value: unknown, stale: boolean, running = false): StepStatus => running ? "running" : !value ? "empty" : stale ? "stale" : "ready";
   const statuses = {
     site: readySite ? "ready" : "empty", space: spaceReady ? "ready" : "empty",
-    market: status(market, marketStale, job === "market" || job === "sample"), demand: status(demand, demandStale, job === "sample"),
-    operation: status(operation?.value.ok, operationStale, job === "operation" || job === "sample"),
-    scenario: status(comparison?.value.ok, comparisonStale || sensitivityStale, job === "comparison" || job === "sensitivity" || job === "sample"),
-    financial: status(financial, financialStale, job === "financial" || job === "sample"),
-    review: status(financial && comparison?.value.ok, financialStale || comparisonStale || sensitivityStale || operationStale, job === "sample"),
+    market: status(market, marketStale, updating), demand: status(demand, demandStale, updating),
+    operation: status(operation?.value.ok, operationStale, updating),
+    scenario: status(comparison?.value.ok, comparisonStale || sensitivityStale, updating),
+    financial: status(financial, financialStale, updating),
+    review: status(financial && comparison?.value.ok, financialStale || comparisonStale || sensitivityStale || operationStale, updating),
   } satisfies Record<WorkflowStep, StepStatus>;
   const displaySite: Site = { ...session.project.site, name: candidate.projectName || "새 후보점", address: candidate.address || null };
-  function exportReview() {
-    if (!readySite || financialStale || comparisonStale || operationStale || sensitivityStale || !financial || !comparison?.value.ok) return;
-    const data = { product: "AI Store Simulator", exportedAt: new Date().toISOString(), candidate, layout,
-      market: market?.value, demand: demand?.value, configuration, operation: operation?.value.ok ? operation.value.aggregate : null,
-      financial: { ...financial.value, input: { assumption: financial.value.input.assumption, runIds: financial.value.input.simulationRuns.map(r => r.id) } },
-      scenarios: comparison.value.rows.map(row => ({ kind: row.kind, demand: row.demand, aggregate: row.evaluation.aggregate,
-        assumptions: row.evaluation.resolved ? { demand: row.evaluation.resolved.configuration.demandParameters,
-          operation: row.evaluation.resolved.configuration.operation, simulation: row.evaluation.resolved.configuration.simulation,
-          financial: row.evaluation.resolved.configuration.financial } : null,
-        monthlyRevenue: row.evaluation.financial?.monthlyRevenue, operatingProfit: row.evaluation.financial?.operatingProfit })),
-      sensitivity: sensitivity ? { parameter: sensitivity.value.parameter, baseValue: sensitivity.value.baseValue,
-        points: sensitivity.value.results.map(point => ({ parameterValue: point.parameterValue, aggregate: point.evaluation.aggregate,
-          monthlyRevenue: point.evaluation.financial?.monthlyRevenue, operatingProfit: point.evaluation.financial?.operatingProfit })) } : null,
-      interpretation: "명시된 예시 상권과 사용자 가정에 따른 검토 자료이며 출점 권고나 매출 보장이 아닙니다.",
-    };
-    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
-    const anchor = document.createElement("a"); anchor.href = url; anchor.download = "store-review.json"; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  async function exportReview() {
+    if (job || invalidDraft || exporting || !readySite || financialStale || comparisonStale || operationStale || sensitivityStale || !financial || !comparison?.value.ok || !operation?.value.ok || !market || !layout) return;
+    const snapshot = structuredClone({ candidate, layout, market: market.value, operation: operation.value,
+      financial: financial.value, comparison: comparison.value, sensitivity: sensitivity?.value ?? null });
+    setExporting(true);
+    try { const { exportProposalWorkbook } = await import("../application/exportProposal"); await exportProposalWorkbook(snapshot); }
+    catch (e) { setError(e instanceof Error ? e.message : "엑셀 제안서를 만들지 못했습니다. 다시 시도해 주세요."); }
+    finally { setExporting(false); }
+  }
+  function checkVisibleDrafts(container: HTMLElement) {
+    const invalid = [...container.querySelectorAll<HTMLInputElement>("input:not(:disabled), select:not(:disabled)")]
+      .some(input => !input.closest("[hidden]") && !input.validity.valid);
+    setInvalidDraft(invalid);
+    if (invalid) cancelTask();
   }
   return <ProductShell candidate={candidate} step={step} statuses={statuses} onNavigate={navigate} busy={job ? jobNames[job] : undefined} error={error} onDismissError={() => setError("")}>
+    <div className="product-workflow-content" onChange={event => checkVisibleDrafts(event.currentTarget)} onBlur={event => checkVisibleDrafts(event.currentTarget)}>
     <span data-testid="sample-status" data-state={sampleStatus} hidden />
-    {step !== "site" && <p className="product-demo-note"><strong>샘플 데이터</strong> 기본 상권·운영·비용은 체험용 예시입니다. 실제 점포의 실적이나 계약조건이 아닙니다.</p>}
+    {step !== "site" && <p className="product-demo-note"><strong>예시 분석</strong> 상권·운영·비용은 체험용 가정입니다. <span>{invalidDraft ? "입력 범위를 확인해 주세요." : "조건을 바꾸면 관련 결과에 자동 반영됩니다."}</span></p>}
     {step === "site" && <SiteStep value={candidate} onChange={value => { cancelTask(); setCandidate(value); }} onContinue={() => navigate("space")} onOpenSpace={() => navigate("space")} hasPlan={true} planName={plan.name} preview={<PlanThumbnail plan={plan} />}
       sampleStatus={sampleStatus} onOpenOperation={() => navigate("operation")} onRetrySample={() => startWorker({ kind: "sample", input: initial }, "")} />}
     <div className="product-workflow-panel" hidden={step !== "space"}>
@@ -206,30 +195,31 @@ export default function SimulatorApp() {
         <SpaceWorkspace initialPlan={initialPlan.current} active={step === "space"} embedded onPlanChange={changePlan} onDocumentReplace={replaceDocument} />
       </SpaceStep>
     </div>
-    {step === "market" && <MarketStep site={displaySite} profile={market?.value ?? null} onRun={loadMarket} busy={job === "market" || job === "sample"} stale={marketStale} disabledReason={blockMessages[analysisBlock]} />}
+    {step === "market" && <MarketStep site={displaySite} profile={market?.value ?? null} onRun={refreshAll} busy={updating} stale={marketStale} disabledReason={blockMessages[analysisBlock]} />}
     {step === "demand" && <DemandStep parameters={configuration.demandParameters} profile={demand?.value ?? null} market={market?.value ?? null} config={configuration.simulation}
-      onChange={value => { cancelTask(); setConfiguration(previous => ({ ...previous, demandParameters: value })); }} onRun={calculateDemand} stale={demandStale}
-      busy={job === "sample"} disabledReason={!market || marketStale ? blockMessages.market : undefined} />}
+      onChange={value => { cancelTask(); setConfiguration(previous => ({ ...previous, demandParameters: value })); }} onRun={refreshAll} stale={demandStale || invalidDraft}
+      busy={updating} disabledReason={blockMessages[operationBlock]} />}
     {step === "operation" && <OperationStep run={operation?.value.ok ? operation.value.runs[0] : null} frames={frames} layout={layout} policy={configuration.operation} config={configuration.simulation}
       onPolicyChange={value => { cancelTask(); setConfiguration(previous => ({ ...previous, operation: value })); }}
       onConfigChange={value => { cancelTask(); setConfiguration(previous => ({ ...previous, simulation: value,
         financial: { ...previous.financial, operatingDayMix: [{ dayType: value.dayType, daysPerMonth: previous.financial.operatingDaysPerMonth, runToDayMultiplier: 1 }] } })); }}
-      onRun={() => runAnalysis("operation")} busy={job === "operation" || job === "sample"} stale={operationStale}
+      onRun={refreshAll} busy={updating} stale={operationStale || invalidDraft}
       disabledReason={job === "sample" ? "샘플 영업 기록을 자동으로 준비하고 있습니다. 준비가 끝나면 바로 재생할 수 있습니다." : blockMessages[operationBlock]} />}
     {step === "scenario" && <ScenarioStep comparison={comparison?.value ?? null} sensitivity={sensitivity?.value ?? null} custom={custom}
       maxConversionChangePercent={configuration.demandParameters.visitConversionRate > 0 ? (1 / configuration.demandParameters.visitConversionRate - 1) * 100 : undefined}
       onCustomChange={value => { cancelTask(); setCustom(value); }} sensitivityParameter={sensitivityParameter}
       onSensitivityParameterChange={value => { cancelTask(); setSensitivityParameter(value); }}
-      onRun={() => runAnalysis("comparison")} onRunSensitivity={() => runAnalysis("sensitivity")} busy={job === "comparison" || job === "sample"} sensitivityBusy={job === "sensitivity" || job === "sample"}
-      stale={comparisonStale || sensitivityStale} disabledReason={blockMessages[operationBlock]} />}
+      onRun={refreshAll} onRunSensitivity={refreshAll} busy={updating} sensitivityBusy={updating}
+      stale={comparisonStale || sensitivityStale || invalidDraft} disabledReason={blockMessages[operationBlock]} />}
     {step === "financial" && <FinancialStep assumptions={configuration.financial} result={financial?.value ?? null} operation={configuration.operation}
       onChange={value => { cancelTask(); setConfiguration(previous => ({ ...previous, financial: { ...value, revision: previous.financial.revision + 1 } })); }}
-      onRun={calculateFinancial} scenarioName="기준 조건" busy={job === "financial" || job === "sample"} stale={financialStale}
-      disabledReason={!operation?.value.ok || operationStale ? "가상영업에서 현재 조건으로 먼저 실행해 주세요." : undefined} />}
+      onRun={refreshAll} scenarioName="기준 조건" busy={updating} stale={financialStale || invalidDraft}
+      disabledReason={blockMessages[operationBlock]} />}
     {step === "review" && <ReviewStep candidate={candidate} layout={layout} market={market?.value ?? null} operation={operation?.value ?? null}
       financial={financial?.value ?? null} comparison={comparison?.value ?? null} sensitivity={sensitivity?.value ?? null}
-      stale={financialStale || comparisonStale || sensitivityStale || operationStale || marketStale || demandStale} onExport={exportReview} />}
+      stale={financialStale || comparisonStale || sensitivityStale || operationStale || marketStale || demandStale || !!job || invalidDraft} exporting={exporting} onExport={exportReview} />}
     {step !== "site" && step !== "space" && <div className="product-page product-actions product-next-actions"><button className="product-button product-button-secondary" onClick={() => navigate(WORKFLOW_STEPS[Math.max(0, WORKFLOW_STEPS.findIndex(s => s.id === step) - 1)].id)}>이전 단계</button>{step !== "review" && <button className="product-button product-button-primary" onClick={() => navigate(WORKFLOW_STEPS[WORKFLOW_STEPS.findIndex(s => s.id === step) + 1].id)}>다음 단계로</button>}</div>}
-    <p className="product-session-note">현재 브라우저에서 작업 중입니다. 페이지를 닫기 전에 공간설계의 JSON 저장과 출점검토의 검토 자료 저장을 이용하세요. 상권은 예시 자료이며 실제 주소를 조회하지 않습니다.</p>
+    <p className="product-session-note">검토 내용을 공유하려면 출점검토에서 엑셀 제안서를 저장하세요. 현재 작업은 이 브라우저에서 유지되며 새로고침하면 샘플로 다시 시작합니다.</p>
+    </div>
   </ProductShell>;
 }

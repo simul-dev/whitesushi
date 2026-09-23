@@ -175,3 +175,190 @@
 }
 .analysis-mobile-scroll-hint { display: none; }
 @media (max-width: 640px) { .simulator .analysis-mobile-scroll-hint { display: block; margin: 18px 0; font-size: 11px; color: #697c76; } }
+
+/* Shared analysis surfaces follow the product's ivory / crimson identity. */
+.simulator .analysis-page { max-width: none; margin: 0; padding: 0; color: #242021; }
+.simulator .analysis-heading { align-items: center; gap: 20px; margin-bottom: 22px; }
+.simulator .analysis-heading h1 { margin: 3px 0 6px; font-size: 28px; letter-spacing: -.045em; }
+.simulator .analysis-eyebrow { color: #BC1930; letter-spacing: .12em; }
+.simulator .analysis-lead { color: #766e69; font-size: 12px; line-height: 1.7; max-width: 800px; }
+.simulator .analysis-button { min-height: 38px; padding: 8px 16px; border-radius: 6px; border-color: #d8d0c9; font-size: 12px; }
+.simulator .analysis-button-primary { background: #BC1930; border-color: #BC1930; }
+.simulator .analysis-button-primary:hover:not(:disabled) { background: #9f1529; }
+.simulator .analysis-button-secondary { color: #403738; background: #fff; }
+.simulator .analysis-button-secondary:hover:not(:disabled) { background: #F7F4EF; }
+.simulator .analysis-page :focus-visible { outline-color: #BC1930; outline-width: 2px; }
+.simulator .analysis-note, .simulator .analysis-field p, .simulator .analysis-section-heading p,
+.simulator .analysis-chart-context, .simulator .analysis-table caption, .simulator .analysis-table small,
+.simulator .analysis-definition-list dt, .simulator .analysis-chart-data { color: #766e69; }
+.simulator .analysis-field label, .simulator .analysis-sensitivity-controls label, .simulator .analysis-table tbody th,
+.simulator .analysis-field select, .simulator .analysis-sensitivity-controls select { color: #403738; }
+.simulator .analysis-input-unit input { color: #242021; border-color: #d8d0c9; }
+.simulator .analysis-input-unit span { color: #80766e; }
+.simulator .analysis-field select, .simulator .analysis-sensitivity-controls select { border-color: #d8d0c9; }
+.simulator .analysis-table th, .simulator .analysis-table td { border-bottom-color: #ebe5df; }
+.simulator .analysis-table thead th { color: #766e69; border-bottom-color: #d8d0c9; }
+.simulator .analysis-section, .simulator .analysis-details { border-color: #e4ddd5; }
+.simulator .analysis-details > summary { color: #4b4141; }
+.simulator .analysis-details > p { color: #766e69; }
+.simulator .analysis-tag { color: #74623f; background: #f1eadb; letter-spacing: 0; }
+.simulator .analysis-tag-demo { background: #fff0da; color: #865f25; }
+.simulator .analysis-notice { background: #f1f6f2; border-color: #27815A; color: #37614b; }
+.simulator .analysis-notice-warning { background: #fbf3e6; border-color: #B48531; color: #805f29; }
+.simulator .analysis-notice-error { background: #fcf0f0; border-color: #BC1930; color: #9e172a; }
+.simulator .analysis-negative, .simulator .analysis-failed, .simulator .analysis-field .analysis-input-error { color: #BC1930; }
+.simulator .analysis-positive { color: #27815A; }
+.simulator .analysis-profit { color: #986b22; }
+.simulator .analysis-input-unit input[aria-invalid=true] { border-color: #BC1930; background: #fff8f8; }
+
+/* Finance: edit assumptions beside the results they drive. */
+.simulator .analysis-dashboard { font-variant-numeric: tabular-nums; }
+.simulator .analysis-dashboard h2 { font-size: 15px; margin: 0; letter-spacing: -.025em; }
+.simulator .analysis-dashboard .analysis-status { margin-bottom: 12px; }
+.simulator .analysis-dashboard .analysis-notice { margin: 8px 0; padding: 8px 12px; font-size: 12px; }
+.simulator .analysis-panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
+.simulator .analysis-panel-heading p { margin: 3px 0 0; color: #766e69; font-size: 11px; line-height: 1.65; }
+.simulator .analysis-panel-heading .analysis-tag { flex-shrink: 0; }
+.simulator .analysis-panel-eyebrow { display: block; color: #9b8673; font-size: 9px; font-weight: 650; letter-spacing: .12em; margin: 0 0 4px; }
+.simulator .analysis-panel-intro { color: #82766e; font-size: 11px; margin: -3px 0 17px; }
+.simulator .analysis-financial-layout { display: grid; grid-template-columns: minmax(300px, .86fr) minmax(0, 2fr); gap: 28px; align-items: start; }
+.simulator .analysis-assumptions-panel { min-width: 0; padding: 20px; background: #F7F4EF; border: 1px solid #ebe4da; border-radius: 10px; }
+.simulator .analysis-financial-results { min-width: 0; padding-top: 2px; }
+.simulator .analysis-dashboard .analysis-fields { gap: 14px 13px; margin: 12px 0 18px; }
+.simulator .analysis-dashboard .analysis-field label { font-size: 11px; margin-bottom: 6px; font-weight: 550; }
+.simulator .analysis-dashboard .analysis-input-unit input { height: 38px; border-radius: 5px; padding: 8px 55px 8px 10px; font-size: 13px; }
+.simulator .analysis-dashboard .analysis-input-unit span { right: 9px; font-size: 10px; }
+.simulator .analysis-dashboard .analysis-field p { font-size: 10px; line-height: 1.6; margin-top: 5px; }
+.simulator .analysis-dashboard .analysis-field select { min-height: 38px; margin-top: 5px; font-size: 11px; padding: 8px 23px 8px 10px; }
+.simulator .analysis-dashboard .analysis-field-explanation { border-color: #caba9f; padding-left: 10px; font-size: 10px; line-height: 1.5; }
+.simulator .analysis-dashboard .analysis-field-explanation strong { color: #705738; }
+.simulator .analysis-compact-details { margin: 0; padding: 13px 0; border-bottom: 0; }
+.simulator .analysis-compact-details + .analysis-compact-details { margin-top: 0; border-top: 1px solid #e4ddd5; }
+.simulator .analysis-compact-details > summary { font-size: 11px; line-height: 1.5; }
+.simulator .analysis-compact-details[open] > summary { margin-bottom: 12px; }
+.simulator .analysis-assumption-footnote { padding-top: 12px; margin-top: 2px; border-top: 1px solid #e4ddd5; font-size: 10px; line-height: 1.75; }
+.simulator .analysis-dashboard .analysis-finance-summary { grid-template-columns: 1.2fr 1.2fr 1fr; gap: 1px; padding: 0; margin: 0 0 16px; background: #e6dfd6; border: 1px solid #e6dfd6; border-radius: 9px; overflow: hidden; }
+.simulator .analysis-dashboard .analysis-finance-summary > div { min-width: 0; background: #fff; padding: 16px 17px 14px; gap: 7px; }
+.simulator .analysis-dashboard .analysis-finance-summary span { color: #665c57; font-size: 11px; font-weight: 550; }
+.simulator .analysis-dashboard .analysis-finance-summary strong { font-size: clamp(22px, 2.05vw, 30px); font-weight: 700; letter-spacing: -.055em; white-space: nowrap; }
+.simulator .analysis-dashboard .analysis-finance-summary strong em { font-size: 15px; font-style: normal; font-weight: 500; margin-left: 3px; }
+.simulator .analysis-dashboard .analysis-finance-summary small { color: #827870; font-size: 10px; line-height: 1.55; }
+.simulator .analysis-dashboard .analysis-kpi-revenue strong { color: #27815A; }
+.simulator .analysis-dashboard .analysis-kpi-profit strong { color: #986b22; }
+.simulator .analysis-dashboard .analysis-kpi-negative strong { color: #BC1930; }
+.simulator .analysis-dashboard .analysis-cost-row { grid-template-columns: 120px minmax(0, 1fr) 116px; gap: 16px; margin: 9px 0; font-size: 11px; color: #6e625d; }
+.simulator .analysis-dashboard .analysis-cost-row strong { font-size: 12px; font-weight: 600; }
+.simulator .analysis-dashboard .analysis-cost-track { height: 11px; background: #f5f1ed; border-radius: 2px; overflow: hidden; }
+.simulator .analysis-dashboard .analysis-bar-revenue { background: #27815A; }
+.simulator .analysis-dashboard .analysis-bar-profit { background: #B48531; }
+.simulator .analysis-dashboard .analysis-bar-cost { background: #c96c75; }
+.simulator .analysis-dashboard .analysis-cost-revenue strong { color: #27815A; }
+.simulator .analysis-dashboard .analysis-cost-profit strong { color: #986b22; }
+.simulator .analysis-dashboard .analysis-cost-cost strong { color: #a52636; }
+.simulator .analysis-dashboard .analysis-cost-total { padding-top: 10px; margin-top: 11px; border-top-color: #e4ddd5; }
+.simulator .analysis-cost-detail { margin: 7px 0 10px; font-size: 10px; }
+.simulator .analysis-dashboard .analysis-financial-basis { padding: 10px 13px; margin: 0 0 17px; background: #F7F4EF; border-left: 2px solid #c3a465; border-radius: 0 4px 4px 0; font-size: 10px; color: #7f7163; line-height: 1.65; }
+.simulator .analysis-dashboard .analysis-financial-basis strong { display: inline; margin-right: 9px; color: #6c5637; font-size: 10px; }
+.simulator .analysis-dashboard .analysis-financial-basis p { display: inline; margin: 0 9px 0 0; }
+.simulator .analysis-dashboard .analysis-financial-basis p:last-child { display: block; margin-top: 2px; color: #8b7b6e; }
+.simulator .analysis-financial-bottom { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 24px; padding-top: 14px; border-top: 1px solid #e4ddd5; }
+.simulator .analysis-break-even, .simulator .analysis-investment { min-width: 0; }
+.simulator .analysis-financial-bottom .analysis-panel-heading { margin-bottom: 2px; }
+.simulator .analysis-break-even .analysis-panel-heading > strong { color: #986b22; font-size: 17px; line-height: 1.2; text-align: right; white-space: nowrap; }
+.simulator .analysis-break-even .analysis-panel-heading > strong small { display: block; margin-top: 3px; color: #8b7b6e; font-weight: 400; font-size: 9px; }
+.simulator .analysis-dashboard .analysis-bep { margin: 5px 0 0; font-size: 11px; }
+.simulator .analysis-dashboard .analysis-bep th, .simulator .analysis-dashboard .analysis-bep td { font-size: 10px; padding: 6px 5px; }
+.simulator .analysis-dashboard .analysis-bep th:first-child { padding-left: 0; }
+.simulator .analysis-bep-verdict { font-size: 10px; font-weight: 550; margin: 9px 0 0; }
+.simulator .analysis-financial-bottom .analysis-note { font-size: 10px; line-height: 1.7; margin-top: 7px; }
+.simulator .analysis-investment { padding-left: 22px; border-left: 1px solid #e4ddd5; }
+.simulator .analysis-investment .analysis-definition-list { font-size: 11px; margin-top: 12px; }
+.simulator .analysis-investment .analysis-definition-list > div { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; }
+.simulator .analysis-investment .analysis-definition-list dd { color: #4a3d34; font-weight: 550; text-align: right; }
+.simulator .analysis-calculation-details { margin-top: 15px; }
+
+/* Scenario: controls precede every result they change. */
+.simulator .analysis-scenario-controls { background: #F7F4EF; border: 1px solid #ebe4da; border-radius: 9px; padding: 10px 20px 8px; margin-bottom: 16px; }
+.simulator .analysis-scenario-controls .analysis-panel-heading { align-items: center; margin-bottom: 4px; }
+.simulator .analysis-scenario-controls .analysis-panel-heading > div { display: flex; align-items: baseline; gap: 12px; }
+.simulator .analysis-scenario-controls .analysis-panel-heading p { margin: 0; }
+.simulator .analysis-fields-four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.simulator .analysis-scenario-controls .analysis-fields { margin: 8px 0 6px; gap: 18px; }
+.simulator .analysis-scenario-controls .analysis-note { font-size: 10px; margin: 0; line-height: 1.65; }
+.simulator .analysis-scenario-results .analysis-panel-heading { margin-bottom: 10px; }
+.simulator .analysis-scenario-delta { flex-shrink: 0; text-align: right; }
+.simulator .analysis-scenario-delta span, .simulator .analysis-scenario-delta small { display: block; color: #82766e; font-size: 10px; }
+.simulator .analysis-scenario-delta strong { display: block; font-size: 23px; line-height: 1.3; letter-spacing: -.035em; }
+.simulator .analysis-scenario-dashboard .analysis-comparison { min-width: 870px; margin: 0; font-size: 12px; table-layout: fixed; }
+.simulator .analysis-scenario-dashboard .analysis-comparison th, .simulator .analysis-scenario-dashboard .analysis-comparison td { padding: 5px 16px; line-height: 1.55; }
+.simulator .analysis-scenario-dashboard .analysis-comparison th:first-child { padding-left: 13px; width: 175px; position: sticky; left: 0; z-index: 1; background: #F7F4EF; box-shadow: 1px 0 #ebe5df; }
+.simulator .analysis-scenario-dashboard .analysis-comparison td { width: auto; }
+.simulator .analysis-scenario-dashboard .analysis-comparison th:last-child, .simulator .analysis-scenario-dashboard .analysis-comparison td:last-child { padding-right: 13px; }
+.simulator .analysis-scenario-dashboard .analysis-comparison thead th { background: #fbf9f6; padding-top: 6px; padding-bottom: 6px; font-size: 12px; color: #4b4141; font-weight: 600; }
+.simulator .analysis-scenario-dashboard .analysis-comparison .analysis-baseline { background: #f4eee3; }
+.simulator .analysis-scenario-dashboard .analysis-comparison tbody th { font-size: 11px; }
+.simulator .analysis-scenario-dashboard .analysis-comparison tbody small { display: inline-block; margin: 0 0 0 8px; color: #91847a; font-size: 10px; white-space: nowrap; }
+.simulator .analysis-scenario-dashboard .analysis-comparison thead small { font-size: 9px; margin: 2px 0 0; color: #97836b; font-weight: 400; }
+.simulator .analysis-scenario-dashboard .analysis-comparison .analysis-financial-row strong { font-size: 15px; }
+.simulator .analysis-scenario-dashboard .analysis-comparison .analysis-financial-row-last th, .simulator .analysis-scenario-dashboard .analysis-comparison .analysis-financial-row-last td { border-bottom: 2px solid #e1d6c5; padding-bottom: 7px; }
+.simulator .analysis-scenario-dashboard .analysis-comparison caption { padding-top: 8px; font-size: 10px; }
+.simulator .analysis-scenario-results > .analysis-note { font-size: 10px; margin-top: 5px; }
+.simulator .analysis-sensitivity-panel { padding: 14px 0; margin-top: 19px; }
+.simulator .analysis-sensitivity-panel > summary { font-size: 12px; }
+.simulator .analysis-sensitivity-panel[open] > summary { margin-bottom: 10px; }
+.simulator .analysis-sensitivity-panel .analysis-sensitivity-controls { margin: 14px 0 18px; gap: 15px; }
+.simulator .analysis-sensitivity-panel .analysis-note { font-size: 11px; margin-top: 8px; }
+.simulator .analysis-sensitivity-panel .analysis-chart svg { max-height: 270px; }
+
+@media (max-width: 1150px) {
+  .simulator .analysis-financial-layout { grid-template-columns: minmax(275px, .92fr) minmax(0, 1.8fr); gap: 20px; }
+  .simulator .analysis-assumptions-panel { padding: 16px; }
+  .simulator .analysis-dashboard .analysis-finance-summary > div { padding: 13px 11px; }
+  .simulator .analysis-dashboard .analysis-finance-summary strong { font-size: 22px; }
+  .simulator .analysis-financial-bottom { grid-template-columns: 1fr; gap: 18px; }
+  .simulator .analysis-investment { border-left: 0; border-top: 1px solid #e4ddd5; padding: 15px 0 0; }
+  .simulator .analysis-investment .analysis-definition-list { display: flex; gap: 24px; }
+  .simulator .analysis-investment .analysis-definition-list > div { flex-direction: column; gap: 3px; }
+  .simulator .analysis-investment .analysis-definition-list dd { text-align: left; }
+}
+@media (max-width: 850px) {
+  .simulator .analysis-heading { align-items: flex-start; flex-direction: row; }
+  .simulator .analysis-financial-layout { grid-template-columns: 1fr; gap: 22px; }
+  .simulator .analysis-primary-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .simulator .analysis-financial-bottom { grid-template-columns: 1.5fr 1fr; }
+  .simulator .analysis-investment { border-top: 0; border-left: 1px solid #e4ddd5; padding: 0 0 0 18px; }
+  .simulator .analysis-investment .analysis-definition-list { display: block; }
+  .simulator .analysis-investment .analysis-definition-list > div { flex-direction: row; }
+  .simulator .analysis-scenario-controls .analysis-panel-heading > div { display: block; }
+  .simulator .analysis-scenario-controls .analysis-panel-heading p { margin-top: 3px; }
+}
+@media (max-width: 650px) {
+  .simulator .analysis-page { padding: 0; }
+  .simulator .analysis-heading { gap: 12px; margin-bottom: 19px; }
+  .simulator .analysis-heading h1 { font-size: 25px; }
+  .simulator .analysis-heading > .analysis-button { width: auto; min-height: 36px; padding: 7px 11px; margin-top: 16px; font-size: 11px; }
+  .simulator .analysis-lead { font-size: 11px; }
+  .simulator .analysis-assumptions-panel { padding: 16px; }
+  .simulator .analysis-dashboard .analysis-fields-two, .simulator .analysis-primary-fields, .simulator .analysis-fields-four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .simulator .analysis-dashboard .analysis-finance-summary { grid-template-columns: 1fr 1fr; }
+  .simulator .analysis-dashboard .analysis-finance-summary > div { padding: 13px 12px; }
+  .simulator .analysis-dashboard .analysis-finance-summary .analysis-kpi-payback { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 3px 12px; }
+  .simulator .analysis-dashboard .analysis-kpi-payback strong { grid-row: 1 / 3; grid-column: 2; text-align: right; font-size: 23px; }
+  .simulator .analysis-dashboard .analysis-cost-row { grid-template-columns: 102px minmax(0, 1fr) 96px; gap: 9px; font-size: 10px; }
+  .simulator .analysis-dashboard .analysis-cost-row strong { font-size: 11px; }
+  .simulator .analysis-dashboard .analysis-cost-track { height: 10px; }
+  .simulator .analysis-financial-bottom { grid-template-columns: 1fr; }
+  .simulator .analysis-investment { border-left: 0; border-top: 1px solid #e4ddd5; padding: 15px 0 0; }
+  .simulator .analysis-investment .analysis-definition-list > div { flex-direction: row; }
+  .simulator .analysis-scenario-controls { padding: 14px 15px; margin-bottom: 17px; }
+  .simulator .analysis-scenario-controls .analysis-panel-heading { gap: 8px; }
+  .simulator .analysis-scenario-controls .analysis-panel-heading > .analysis-tag { display: none; }
+  .simulator .analysis-scenario-controls .analysis-fields { gap: 12px; }
+  .simulator .analysis-scenario-results .analysis-panel-heading { flex-direction: column; gap: 10px; }
+  .simulator .analysis-scenario-delta { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; text-align: left; }
+  .simulator .analysis-scenario-delta strong { font-size: 21px; }
+  .simulator .analysis-scenario-dashboard .analysis-mobile-scroll-hint { color: #8a7765; margin: 12px 0; font-size: 10px; }
+  .simulator .analysis-sensitivity-panel .analysis-sensitivity-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .simulator .analysis-sensitivity-panel .analysis-sensitivity-controls label { min-width: 0; font-size: 11px; }
+  .simulator .analysis-sensitivity-panel .analysis-sensitivity-controls .analysis-button { justify-self: start; }
+}

@@ -28,5 +28,5 @@ export interface ReviewStepProps {
   candidate: ReviewCandidate; layout: StoreLayout | null; market: MarketProfile | null;
   operation: ScenarioEvaluation<FinancialAnalysisResult> | null; financial: FinancialAnalysisResult | null;
   comparison: ScenarioComparison<FinancialAnalysisResult> | null; sensitivity: SensitivityResult<FinancialAnalysisResult> | null;
-  stale?: boolean; onExport?(): void;
+  stale?: boolean; exporting?: boolean; onExport?(): void;
 }

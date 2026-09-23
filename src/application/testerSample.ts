@@ -1,4 +1,4 @@
-import { updateProjectBase } from "../core";
+import { updateProjectBase, type MarketProfile } from "../core";
 import { MockMarketProvider } from "../modules/market";
 import { TransparentDemandModel } from "../modules/demand";
 import { checkpointWorkflow, createWorkflowConfiguration, sampleWorkflowSession, workflowInputKeys,
@@ -27,9 +27,9 @@ export function createTesterSampleInput(now: string) {
 export type TesterSampleInput = ReturnType<typeof createTesterSampleInput>;
 
 /** One captured input transaction; the UI may cancel it without partial state writes. */
-export async function prepareTesterSample(input: TesterSampleInput) {
+export async function prepareTesterSample(input: TesterSampleInput, existingMarket?: MarketProfile | null) {
   const prepared = structuredClone(input);
-  const market = await new MockMarketProvider().fetch({ site: prepared.session.project.site,
+  const market = existingMarket ? structuredClone(existingMarket) : await new MockMarketProvider().fetch({ site: prepared.session.project.site,
     period: { from: new Date(Date.parse(input.now) - 28 * 86400000).toISOString(), to: input.now } });
   const demand = new TransparentDemandModel().calculate({ market, parameters: prepared.configuration.demandParameters });
   prepared.session.project = updateProjectBase(prepared.session.project, { market, demand }, input.now);
