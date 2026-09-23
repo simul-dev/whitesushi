@@ -8,6 +8,7 @@ const core = path.join(root, "src/core");
 const space = path.join(root, "src/modules/space");
 const coreEntry = path.join(core, "index.ts");
 const spaceEntry = path.join(space, "index.ts");
+const engineModules = ["market", "demand", "operation", "simulation"].map(name => path.join(root, "src/modules", name));
 const configFile = ts.readConfigFile(path.join(root, "tsconfig.json"), ts.sys.readFile);
 if (configFile.error) throw new Error("Architecture checks need a readable tsconfig.json");
 const options = ts.parseJsonConfigFileContent(configFile.config, ts.sys, root).options;
@@ -94,8 +95,11 @@ function inspectGraph(entries: string[]) {
           continue;
         }
       } else {
-        issues.push(`${display(file)} is outside the core/Space data boundary`);
-        continue;
+        const owner = engineModules.find(directory => within(file, directory));
+        if (!owner || (!within(target, owner) && target !== coreEntry)) {
+          issues.push(`${display(file)} -> ${display(target)}: independent engines may only cross into public core`);
+          continue;
+        }
       }
       visit(target);
     }
@@ -135,6 +139,13 @@ function browserReferences(files: string[]): string[] {
 }
 
 describe("module architecture", () => {
+  it.each(engineModules)("keeps %s independent of other modules and UI", (directory) => {
+    expect(existsSync(path.join(directory, "index.ts"))).toBe(true);
+    const graph = inspectGraph(productionFiles(directory));
+    expect(graph.files.length).toBeGreaterThan(1);
+    expect(graph.issues).toEqual([]);
+    expect(browserReferences(graph.files)).toEqual([]);
+  });
   it("keeps every production core file independent of modules, UI and external libraries", () => {
     expect(existsSync(coreEntry), "Core must expose an actual public entry").toBe(true);
     const entries = productionFiles(core);
