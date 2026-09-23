@@ -57,7 +57,9 @@ export default function PlanEditor({
   useEffect(() => {
     const ob = new ResizeObserver((es) => {
       const r = es[0].contentRect;
-      setSize({ w: r.width, h: r.height });
+      // An embedded workspace stays mounted while hidden between workflow steps.
+      // Keep its last valid camera dimensions until it is visible again.
+      if (r.width > 0 && r.height > 0) setSize({ w: r.width, h: r.height });
     });
     if (container.current) ob.observe(container.current);
     return () => ob.disconnect();

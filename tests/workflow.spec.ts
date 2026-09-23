@@ -41,7 +41,7 @@ async function approve(page: Page) {
 }
 test("real source PDF / geometry / portable JSON", async ({ page }) => {
   const errors = errorLog(page);
-  await page.goto("/");
+  await page.goto("/?workspace=space");
   await expect(page.getByTestId("plan-editor")).toBeVisible();
   await expect(page.locator("[data-entity-id]")).toHaveCount(157);
   const image = await page.getByTestId("pdf-overlay").getAttribute("href");
@@ -74,7 +74,7 @@ test("edits, drag, rotation, add, delete and undo affect the same JSON", async (
   page,
 }) => {
   const errors = errorLog(page);
-  await page.goto("/");
+  await page.goto("/?workspace=space");
   await page
     .getByRole("textbox", { name: "요소 검색" })
     .fill("다이닝 테이블 01");
@@ -146,7 +146,7 @@ test("reviewed 3D, six cameras, GLB/GLTF and six orthographic/perspective PNG ex
   page,
 }) => {
   const errors = errorLog(page);
-  await page.goto("/");
+  await page.goto("/?workspace=space");
   await expect(
     page.getByRole("button", { name: "Export GLB", exact: true }),
   ).toBeDisabled();
@@ -212,7 +212,7 @@ test("PDF.js sample fingerprint import and unrelated PDF calibration", async ({
   page,
 }) => {
   const errors = errorLog(page);
-  await page.goto("/");
+  await page.goto("/?workspace=space");
   await page
     .getByLabel("PDF 파일 업로드", { exact: true })
     .setInputFiles("260906_백초밥-3.pdf");
@@ -268,7 +268,7 @@ test("JSON validation rejects malformed uploads and restores exported edits", as
   page,
 }) => {
   const errors = errorLog(page);
-  await page.goto("/");
+  await page.goto("/?workspace=space");
   await page
     .getByLabel("FloorPlan JSON 파일 업로드", { exact: true })
     .setInputFiles({
@@ -300,7 +300,7 @@ test("height, materials, light and floor outline are editable and invalidate pri
   page,
 }) => {
   const errors = errorLog(page);
-  await page.goto("/");
+  await page.goto("/?workspace=space");
   await approve(page);
   await page.getByRole("button", { name: "모델 기본값", exact: true }).click();
   await page

@@ -1,0 +1,60 @@
+import { useEffect, useState, type ReactNode } from "react";
+import type { NumericAggregate } from "../../modules/scenario";
+import { AnalysisStatus, EmptyAnalysis, formatNumber, LineChart, manwon, NumberField, pct, runAfterValidation, StepHeading } from "./common";
+import type { ScenarioStepProps, SensitivityChoice } from "./types";
+
+const names: Record<string, string> = { Conservative: "보수적", Baseline: "기준", Optimistic: "낙관적", Custom: "사용자 설정" };
+const choiceLabels: Record<SensitivityChoice, string> = { conversion: "방문 전환율", seats: "좌석 수", kitchen: "주방 동시 조리 수", spending: "홀 객단가" };
+const aggregateText = (value: NumericAggregate, scale = 1, unit = "") => <><strong>{formatNumber(value.mean * scale)}{unit}</strong><small>{formatNumber(value.min * scale)}–{formatNumber(value.max * scale)}{unit}</small></>;
+
+export function ScenarioStep(props: ScenarioStepProps) {
+  const { comparison, sensitivity, custom, onCustomChange, onRun, onRunSensitivity, sensitivityParameter, onSensitivityParameterChange, busy, sensitivityBusy, disabledReason } = props;
+  const [response, setResponse] = useState<"served" | "waiting" | "revenue">("served");
+  useEffect(() => { setResponse(sensitivityParameter === "spending" ? "revenue" : "served"); }, [sensitivityParameter]);
+  const rows = comparison?.rows ?? [];
+  const baseline = rows.find(row => row.kind === "Baseline")?.evaluation;
+  const tests = sensitivity?.results ?? [];
+  const isConversion = sensitivity?.parameter.path === "demandParameters.visitConversionRate";
+  const parameterUnit = isConversion ? "%" : ({ seats: "석", orders: "건", "KRW/customer": "원/명", ratio: "비율" }[sensitivity?.parameter.unit ?? ""] ?? sensitivity?.parameter.unit ?? "");
+  const responseValues = tests.map(point => !point.evaluation.ok ? null : response === "served" ? point.evaluation.aggregate.metrics.customersServed.mean : response === "waiting" ? point.evaluation.aggregate.metrics.averageWaitingSeconds.mean / 60 : point.evaluation.financial ? point.evaluation.financial.monthlyRevenue / 10000 : null);
+  const row = (label: string, value: (evaluation: Extract<NonNullable<typeof baseline>, { ok: true }>) => ReactNode) => <tr key={label}><th scope="row">{label}</th>{rows.map(item => <td key={item.scenarioId} className={item.kind === "Baseline" ? "analysis-baseline" : undefined}>{item.evaluation.ok ? value(item.evaluation) : <span className="analysis-failed">계산 실패</span>}</td>)}</tr>;
+  return <div className="analysis-page"><StepHeading number="06" title="조건이 바뀌면 얼마나 달라질까요?" description="같은 공간과 난수 조건에서 가정을 바꾸어 결과를 비교합니다." action={<button className="analysis-button analysis-button-primary" onClick={event => runAfterValidation(event, onRun)} disabled={busy || !!disabledReason}>{busy ? "시나리오 비교 중…" : "4개 시나리오 비교"}</button>} />
+    <AnalysisStatus {...props} />
+    <p className="analysis-mobile-scroll-hint">비교 표와 그래프를 가로로 이동하면 전체 조건을 볼 수 있습니다.</p>
+    <section className="analysis-section analysis-section-first"><div className="analysis-section-heading"><div><h2>보수적 · 기준 · 낙관적 · 사용자 설정</h2><p>보수적: 전환율 −20%, 객단가 −10% · 낙관적: 전환율 +20%, 객단가 +10%<br />낙관 전환율은 100% 상한 적용 · 실제 적용된 비율은 비교 표에서 확인하세요.</p></div></div>
+      {!comparison ? <EmptyAnalysis title="하나의 숫자 대신 조건별 범위를 비교합니다.">가상영업 설정을 준비한 뒤 4개 시나리오를 실행하세요. 반복실험 평균과 최솟값–최댓값을 함께 보여줍니다.</EmptyAnalysis> : <>
+        {props.stale && <p className="analysis-tag analysis-tag-demo">변경 전 비교 결과 · 다시 계산 필요</p>}
+        <div className="analysis-table-scroll"><table className="analysis-table analysis-comparison"><caption>운영 값은 관측 구간당 반복실험 평균, 작은 값은 최솟값–최댓값입니다.</caption><thead><tr><th scope="col">비교 항목</th>{rows.map(item => <th key={item.scenarioId} scope="col" className={item.kind === "Baseline" ? "analysis-baseline" : undefined}>{names[item.kind]}<small>{item.evaluation.replication?.count ?? 0}회 반복</small></th>)}</tr></thead><tbody>
+          {row("적용 방문 전환율", evaluation => pct(evaluation.resolved.configuration.demandParameters!.visitConversionRate, 2))}
+          {row("홀 방문 유입 · 명", evaluation => aggregateText(evaluation.aggregate.metrics.customersArrived))}
+          {row("홀 처리 완료 · 명", evaluation => aggregateText(evaluation.aggregate.metrics.customersServed))}
+          {row("홀 이탈 · 명", evaluation => aggregateText(evaluation.aggregate.metrics.customersLost))}
+          {row("배달 완료 · 건", evaluation => evaluation.aggregate.channelMetrics["delivery.ordersCompleted"] ? aggregateText(evaluation.aggregate.channelMetrics["delivery.ordersCompleted"]) : "미적용")}
+          {row("평균 대기 · 분", evaluation => aggregateText(evaluation.aggregate.metrics.averageWaitingSeconds, 1 / 60))}
+          {row("주방 가동률", evaluation => aggregateText(evaluation.aggregate.metrics.kitchenUtilization, 100, "%"))}
+          {row("조건부 월 매출", evaluation => evaluation.financial ? <strong>{manwon(evaluation.financial.monthlyRevenue)}</strong> : "재무 미계산")}
+          {row("조건부 월 영업이익", evaluation => evaluation.financial ? <strong className={evaluation.financial.monthlyOperatingProfit < 0 ? "analysis-negative" : ""}>{manwon(evaluation.financial.monthlyOperatingProfit)}</strong> : "재무 미계산")}
+          {row("영업이익률", evaluation => evaluation.financial ? pct(evaluation.financial.operatingMargin) : "—")}
+        </tbody></table></div>
+        <p className="analysis-note">표의 범위는 반복실험 관측 범위이며 신뢰구간이 아닙니다. 월간 결과는 완료 처리량·객단가·영업일 가정을 적용한 조건부 계산입니다.</p>
+        {rows.some(item => !item.evaluation.ok) && <div className="analysis-notice analysis-notice-error">실패한 시나리오는 다른 결과로 대체하지 않았습니다.{rows.filter(item => !item.evaluation.ok).map(item => <p key={item.scenarioId}>{names[item.kind]}: {item.evaluation.issues.map(issue => issue.message).join(" · ")}</p>)}</div>}
+      </>}
+    </section>
+    <details className="analysis-details"><summary>사용자 시나리오 조건 수정</summary><div className="analysis-fields analysis-fields-two">
+      <NumberField label="전환율 변화" value={custom.conversionChangePercent} min={-100} max={props.maxConversionChangePercent} unit="%" step={5} onChange={value => onCustomChange({ ...custom, conversionChangePercent: value })} help="기준값 대비 상대 변화입니다. +20은 기준값의 1.2배입니다. 적용 전환율이 100%를 넘을 수 없습니다." />
+      <NumberField label="객단가 변화" value={custom.spendingChangePercent} min={-100} unit="%" step={5} onChange={value => onCustomChange({ ...custom, spendingChangePercent: value })} help="홀 고객당 금액의 상대 변화" />
+      <NumberField label="조리 인력" value={custom.cooks} unit="명" step={1} onChange={value => onCustomChange({ ...custom, cooks: value })} />
+      <NumberField label="주방 동시 조리" value={custom.kitchenConcurrentOrders} unit="건" step={1} onChange={value => onCustomChange({ ...custom, kitchenConcurrentOrders: value })} />
+    </div><p className="analysis-note">인력 변경의 비용 반영은 수익성 단계의 인건비 계산 방식에 따릅니다. 월 총액을 입력한 경우 인력을 늘려도 그 총액은 유지됩니다.</p></details>
+    <section className="analysis-section"><div className="analysis-section-heading"><div><h2>한 가지 가정만 바꿔봅니다.</h2><p>다른 조건은 유지하면서 처리량·대기·매출의 변화를 확인합니다.</p></div></div>
+      <div className="analysis-sensitivity-controls"><label>바꿀 가정<select aria-label="민감도 변수" value={sensitivityParameter} onChange={event => onSensitivityParameterChange(event.target.value as SensitivityChoice)}>{Object.entries(choiceLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><label>확인할 결과<select aria-label="민감도 결과 지표" value={response} onChange={event => setResponse(event.target.value as typeof response)}><option value="served">홀 처리 완료</option><option value="waiting">평균 대기시간</option><option value="revenue">월 매출</option></select></label><button className="analysis-button analysis-button-secondary" onClick={event => runAfterValidation(event, onRunSensitivity)} disabled={busy || sensitivityBusy || !!disabledReason}>{sensitivityBusy ? "변화 계산 중…" : "민감도 계산"}</button></div>
+      {!sensitivity ? <p className="analysis-note">변수를 선택하고 계산하면 실제 실행 결과의 반응 곡선이 나타납니다.</p> : <>
+        {props.stale && <p className="analysis-tag analysis-tag-demo">변경 전 민감도 결과 · 다시 계산 필요</p>}
+        <p className="analysis-chart-context">분석 변수: {sensitivity.parameter.label} · 기준값 {formatNumber(sensitivity.baseValue * (isConversion ? 100 : 1), 3)} {parameterUnit} · 각 점의 조건을 독립적으로 실행했습니다.</p>
+        <LineChart title={response === "served" ? "조건 변화에 따른 홀 처리 완료" : response === "waiting" ? "조건 변화에 따른 평균 대기" : "조건 변화에 따른 월 매출"} labels={tests.map(point => `${formatNumber(point.parameterValue * (isConversion ? 100 : 1), 3)}${isConversion ? "%" : ""}`)} xValues={tests.map(point => point.parameterValue)} unit={response === "served" ? "명/관측 구간" : response === "waiting" ? "분" : "만원/월"} xLabel={`${sensitivity.parameter.label} (${parameterUnit})`} baseIndex={tests.findIndex(point => Math.abs(point.parameterValue - sensitivity.baseValue) < 1e-9)} series={[{ name: "반복실험 평균에 따른 결과", color: "#176f5f", values: responseValues }]} />
+        {tests.some(point => !point.evaluation.ok) && <p className="analysis-notice analysis-notice-warning">실패한 조건은 그래프에서 비워 두었습니다. 입력 범위와 실행 오류를 확인하세요.</p>}
+        <p className="analysis-note">{sensitivity.parameter.path.startsWith("layout.") ? "좌석 변경은 운영 정원만 바꾼 가상 개입입니다. 가구 간격과 실제 배치 가능성은 별도로 검토해야 합니다." : "값을 올렸을 때 처리량이 얼마나 늘어나는지, 대기도 함께 늘어나는지 확인하세요. 한 번의 비교로 최대 처리 용량을 확정하지 않습니다."}</p>
+      </>}
+    </section>
+  </div>;
+}

@@ -57,9 +57,16 @@ export interface SpaceWorkspaceProps {
   initialPlan?: FloorPlan;
   /** Detached document snapshot; this callback must not control the editor state. */
   onPlanChange?: (plan: FloorPlan) => void;
+  /** Keep an embedded editor mounted across workflow steps without global shortcuts. */
+  active?: boolean;
+  /** Avoid nested main landmarks when hosted inside a product workflow. */
+  embedded?: boolean;
+  /** Imported documents require explicit operational mappings in the parent workflow. */
+  onDocumentReplace?: () => void;
 }
 
-export default function SpaceWorkspace({ initialPlan, onPlanChange }: SpaceWorkspaceProps) {
+export default function SpaceWorkspace({ initialPlan, onPlanChange, active = true, embedded = false, onDocumentReplace }: SpaceWorkspaceProps) {
+  const Surface = embedded ? "section" : "main";
   const [plan, setPlan] = useState<FloorPlan>(() => validatePlan(initialPlan ?? sample)),
     [selectedId, setSelectedId] = useState<string | null>(null),
     [mode, setMode] = useState<"2d" | "3d">("2d"),
@@ -165,6 +172,7 @@ export default function SpaceWorkspace({ initialPlan, onPlanChange }: SpaceWorks
   useEffect(() => {
     const f = (e: KeyboardEvent) => {
       if (
+        !active ||
         (e.target as HTMLElement)?.closest("input,textarea,select") ||
         session ||
         reviewDialog
@@ -201,6 +209,7 @@ export default function SpaceWorkspace({ initialPlan, onPlanChange }: SpaceWorks
     return () => clearTimeout(t);
   }, [notice]);
   function replace(next: FloorPlan) {
+    onDocumentReplace?.();
     commit(validatePlan(next));
     setSelectedId(null);
     setMode("2d");
@@ -568,7 +577,7 @@ export default function SpaceWorkspace({ initialPlan, onPlanChange }: SpaceWorks
             <RotateCw size={15} /> 기준 도면 다시 불러오기
           </button>
         </aside>
-        <main className="main-surface">
+        <Surface className="main-surface">
           <div className="viewport-toolbar">
             <div className="view-tabs">
               <button
@@ -707,7 +716,7 @@ export default function SpaceWorkspace({ initialPlan, onPlanChange }: SpaceWorks
               </>
             )}
           </div>
-        </main>
+        </Surface>
         <aside className="properties">
           <div className="properties-heading">
             <h3>{settings ? "모델 기본값" : "속성"}</h3>

@@ -1,0 +1,148 @@
+.simulator .operation-step { --operation-ink: #203a40; --operation-green: #176f5f; }
+.simulator .operation-step .product-page-heading h1 { word-break: keep-all; }
+.simulator .operation-settings { border: 0; margin: 0 0 24px; padding: 0; min-width: 0; }
+.simulator .operation-settings-primary { display: grid; grid-template-columns: repeat(3, minmax(110px, 1fr)) minmax(205px, 1.5fr); gap: 20px; align-items: end; }
+.simulator .operation-input-unit { display: flex; align-items: center; gap: 9px; }
+.simulator .operation-input-unit input { min-width: 0; width: 100%; }
+.simulator .operation-input-unit > span { white-space: nowrap; font-size: 12px; color: #6e7f7a; }
+.simulator .operation-input-error { color: #9c422e; font-size: 11px; }
+.simulator .operation-run-action { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+.simulator .operation-run-action .product-note { margin: 0; }
+.simulator .operation-advanced { margin-top: 20px; padding-top: 16px; border-top: 1px solid #e4eae7; }
+.simulator .operation-advanced summary { cursor: pointer; color: #536b65; font-size: 13px; width: fit-content; }
+.simulator .operation-advanced-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 20px; }
+.simulator .operation-advanced h3 { font-size: 13px; font-weight: 650; margin: 16px 0 12px; }
+.simulator .operation-window-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; grid-column: 1 / -1; }
+.simulator .operation-theatre { border: 1px solid #d7e2dd; border-radius: 12px; overflow: hidden; background: #fff; }
+.simulator .operation-playback { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 22px; border-bottom: 1px solid #dfe7e3; }
+.simulator .operation-transport { display: flex; align-items: center; gap: 18px; }
+.simulator .operation-text-button { border: 0; padding: 5px 0; background: transparent; color: #61756e; cursor: pointer; font: inherit; font-size: 12px; }
+.simulator .operation-text-button:disabled { opacity: .45; cursor: default; }
+.simulator .operation-speed select { background: #f0f5f2; border: 0; border-radius: 5px; padding: 7px 8px; color: var(--operation-ink); font: inherit; font-size: 12px; }
+.simulator .operation-clock { display: flex; align-items: baseline; gap: 9px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.simulator .operation-clock > span, .simulator .operation-clock small { color: #6e7f7a; font-size: 11px; }
+.simulator .operation-clock strong { font-size: 24px; font-weight: 550; letter-spacing: -.5px; }
+.simulator .operation-stage { display: grid; grid-template-columns: minmax(0, 1fr) 285px; min-height: 560px; }
+.simulator .operation-canvas { min-width: 0; position: relative; display: flex; flex-direction: column; align-items: center; background: #f4f7f4; padding: 20px 24px 14px; }
+.simulator .operation-canvas-label { display: flex; width: 100%; justify-content: space-between; gap: 14px; color: #7c8c84; font-size: 10px; }
+.simulator .operation-canvas-label > span:first-child { letter-spacing: 1.6px; font-weight: 650; }
+.simulator .operation-floor { display: block; width: 100%; height: 520px; max-height: 65vh; flex: 1; min-height: 300px; margin: 12px 0; overflow: visible; }
+.simulator .operation-floor-boundary { fill: #fdfcf8; stroke: #b7c7bf; stroke-width: 1.1; vector-effect: non-scaling-stroke; }
+.simulator .operation-geometry > rect, .simulator .operation-geometry > polygon { stroke: #abbcb2; stroke-width: .8; vector-effect: non-scaling-stroke; fill: #e9ede6; }
+.simulator .operation-geometry-zone > rect, .simulator .operation-geometry-zone > polygon { fill: #f4f2e9; stroke: #d9ded5; stroke-dasharray: 3 3; }
+.simulator .operation-kitchen-zone > rect, .simulator .operation-kitchen-zone > polygon { fill: #e9efea; }
+.simulator .operation-geometry-wall > rect, .simulator .operation-geometry-wall > polygon { fill: #74897b; stroke: #637f70; }
+.simulator .operation-geometry-door > rect, .simulator .operation-geometry-door > polygon { fill: #fcfdfb; stroke: #7d9988; stroke-dasharray: 3 2; }
+.simulator .operation-geometry-window > rect, .simulator .operation-geometry-window > polygon { fill: #b9d5d3; stroke: #779d9a; }
+.simulator .operation-chair > rect, .simulator .operation-chair > polygon { fill: #cdd6ca; stroke: #a4b4a4; }
+.simulator .operation-table > rect, .simulator .operation-table > polygon { fill: #e8ddc9; stroke: #b5a887; stroke-width: 1; }
+.simulator .operation-table-occupied > rect, .simulator .operation-table-occupied > polygon { fill: #176f5f; stroke: #0e594b; }
+.simulator .operation-geometry-label { fill: #66705c; font-weight: 650; pointer-events: none; }
+.simulator .operation-table-occupied > text { fill: #fff; }
+.simulator .operation-kitchen-station > rect, .simulator .operation-kitchen-station > polygon { fill: #c9d9d1; stroke: #7b9d8c; }
+.simulator .operation-kitchen-active > rect, .simulator .operation-kitchen-active > polygon { fill: #e6bf7a; stroke: #be924b; }
+.simulator .operation-entry-marker circle { fill: #176f5f; }
+.simulator .operation-entry-marker circle + text { fill: #fff; }
+.simulator .operation-entry-marker rect { fill: #fff; stroke: #d4dfd7; stroke-width: .7; vector-effect: non-scaling-stroke; }
+.simulator .operation-entry-marker text { fill: #36584b; font-weight: 600; }
+.simulator .operation-map-legend { display: flex; justify-content: center; gap: 20px; font-size: 10px; color: #6e7f7a; }
+.simulator .operation-map-legend span { display: flex; align-items: center; gap: 5px; }
+.simulator .operation-map-legend i { width: 8px; height: 8px; border-radius: 2px; }
+.simulator .operation-legend-free { background: #e8ddc9; border: 1px solid #b5a887; }
+.simulator .operation-legend-used { background: #176f5f; }
+.simulator .operation-legend-kitchen { background: #e6bf7a; }
+.simulator .operation-map-note { text-align: center; color: #7c8c84; font-size: 10px; margin: 10px 0 0; line-height: 1.6; }
+.simulator .operation-state { padding: 22px; border-left: 1px solid #dfe7e3; }
+.simulator .operation-section-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.simulator .operation-section-title h2, .simulator .operation-section-title h3 { font-size: 14px; font-weight: 650; margin: 0; }
+.simulator .operation-section-title > span { color: #7b8c83; font-size: 10px; }
+.simulator .operation-waiting { padding: 24px 0 18px; }
+.simulator .operation-waiting > span { display: block; font-size: 12px; color: #647a70; }
+.simulator .operation-waiting > strong { display: block; font-size: 42px; font-weight: 500; line-height: 1.3; letter-spacing: -1.5px; font-variant-numeric: tabular-nums; }
+.simulator .operation-waiting > strong small { margin-left: 6px; font-size: 13px; letter-spacing: 0; color: #6e7f7a; font-weight: 400; }
+.simulator .operation-waiting p { margin: 6px 0 0; font-size: 10px; color: #7c8c84; }
+.simulator .operation-counts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 0; }
+.simulator .operation-counts dt { color: #6e7f7a; font-size: 10px; margin-bottom: 6px; }
+.simulator .operation-counts dd { margin: 0; font-size: 21px; font-weight: 550; font-variant-numeric: tabular-nums; }
+.simulator .operation-counts dd small { font-size: 10px; color: #7c8c84; font-weight: 400; margin-left: 3px; }
+.simulator .operation-occupancy { margin-top: 24px; padding-top: 20px; border-top: 1px solid #e4eae7; display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.simulator .operation-occupancy > span { font-size: 12px; color: #647a70; }
+.simulator .operation-occupancy strong { font-size: 20px; font-weight: 550; }
+.simulator .operation-occupancy strong small { font-size: 10px; color: #7c8c84; margin-left: 4px; font-weight: 400; }
+.simulator .operation-occupancy > small { color: #7c8c84; font-size: 10px; width: 100%; }
+.simulator .operation-pool { margin-top: 16px; }
+.simulator .operation-pool > div:first-child { display: flex; justify-content: space-between; font-size: 11px; color: #647a70; }
+.simulator .operation-pool strong { font-size: 11px; font-weight: 550; color: #385b4d; }
+.simulator .operation-pool-track { margin-top: 7px; height: 4px; background: #edf1ec; border-radius: 2px; overflow: hidden; }
+.simulator .operation-pool-track > span { height: 100%; display: block; background: #4b9175; }
+.simulator .operation-pool-note { font-size: 10px; margin: 12px 0 0; }
+.simulator .operation-delivery { border-top: 1px solid #e4eae7; padding-top: 20px; margin-top: 20px; }
+.simulator .operation-delivery h3 { font-size: 12px; margin: 0 0 16px; font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; }
+.simulator .operation-delivery h3 span { color: #7c8c84; font-size: 10px; font-weight: 400; }
+.simulator .operation-delivery .product-note { margin: 12px 0 0; font-size: 10px; }
+.simulator .operation-scrubber { padding: 15px 22px; border-top: 1px solid #dfe7e3; }
+.simulator .operation-scrubber input { display: block; width: 100%; accent-color: #176f5f; cursor: pointer; }
+.simulator .operation-scrubber > div { display: flex; justify-content: space-between; gap: 16px; margin-top: 6px; font-size: 10px; color: #7c8c84; }
+.simulator .operation-results { margin-top: 34px; }
+.simulator .operation-result-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; margin: 22px 0; }
+.simulator .operation-result-summary > div { display: flex; flex-direction: column; gap: 8px; }
+.simulator .operation-result-summary span { font-size: 12px; color: #6e7f7a; }
+.simulator .operation-result-summary strong { font-size: 28px; font-weight: 500; letter-spacing: -.6px; font-variant-numeric: tabular-nums; }
+.simulator .operation-result-summary small { font-size: 11px; color: #7c8c84; margin-left: 5px; font-weight: 400; letter-spacing: 0; }
+.simulator .operation-finding { display: flex; align-items: flex-start; gap: 22px; padding: 18px 0; border-top: 1px solid #e4eae7; border-bottom: 1px solid #e4eae7; }
+.simulator .operation-finding-label { color: #7c8c84; font-size: 11px; flex-shrink: 0; margin-top: 2px; }
+.simulator .operation-finding strong { font-size: 13px; font-weight: 650; color: #385b4d; }
+.simulator .operation-finding p { font-size: 12px; line-height: 1.8; color: #6e7f7a; margin: 5px 0 0; }
+.simulator .operation-hourly { margin-top: 28px; }
+.simulator .operation-hourly .operation-section-title > span { display: flex; align-items: center; gap: 5px; }
+.simulator .operation-hourly .operation-section-title i { width: 7px; height: 7px; display: inline-block; margin-left: 6px; }
+.simulator .operation-key-arrived { background: #c7d4c7; }
+.simulator .operation-key-served { background: #377d65; }
+.simulator .operation-flow-scroll { max-width: 100%; overflow-x: auto; margin-top: 20px; scrollbar-width: thin; }
+.simulator .operation-flow-chart { display: block; width: 100%; min-width: 620px; height: auto; min-height: 140px; }
+.simulator .operation-flow-chart text { fill: #7c8c84; font-size: 11px; }
+.simulator .operation-chart-grid { stroke: #e4eae7; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.simulator .operation-line-arrived { fill: none; stroke: #b4c5b4; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.simulator .operation-line-served { fill: none; stroke: #377d65; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.simulator .operation-chart-playhead { stroke: #8e9d93; stroke-dasharray: 4 4; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.simulator .operation-visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+@media (max-width: 1050px) {
+  .simulator .operation-stage { grid-template-columns: minmax(0, 1fr) 245px; }
+  .simulator .operation-state { padding: 20px 16px; }
+  .simulator .operation-settings-primary { gap: 14px; }
+  .simulator .operation-advanced-grid { gap: 24px; }
+}
+@media (max-width: 760px) {
+  .simulator .operation-settings-primary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .simulator .operation-run-action { grid-column: 1 / -1; flex-direction: row; align-items: center; justify-content: space-between; }
+  .simulator .operation-stage { grid-template-columns: 1fr; }
+  .simulator .operation-state { border-left: 0; border-top: 1px solid #dfe7e3; display: grid; grid-template-columns: 1fr 1fr; column-gap: 24px; }
+  .simulator .operation-state > .operation-section-title { grid-column: 1 / -1; }
+  .simulator .operation-waiting { grid-column: 1; padding-bottom: 12px; }
+  .simulator .operation-state > .operation-counts { grid-column: 2; align-self: center; }
+  .simulator .operation-occupancy { grid-column: 1 / -1; margin-top: 5px; padding-top: 14px; }
+  .simulator .operation-pool-note { align-self: center; }
+  .simulator .operation-delivery { grid-column: 1 / -1; }
+  .simulator .operation-delivery .operation-counts { max-width: 400px; }
+  .simulator .operation-floor { min-height: 300px; max-height: 55vh; }
+  .simulator .operation-advanced-grid { grid-template-columns: 1fr; gap: 8px; }
+  .simulator .operation-result-summary { gap: 20px; grid-template-columns: 1fr 1fr; }
+  .simulator .operation-playback { padding: 14px; gap: 10px; }
+  .simulator .operation-transport { gap: 12px; }
+  .simulator .operation-clock { gap: 6px; }
+  .simulator .operation-clock small { display: none; }
+  .simulator .operation-clock strong { font-size: 22px; }
+  .simulator .operation-finding { flex-direction: column; gap: 8px; }
+}
+@media (max-width: 430px) {
+  .simulator .operation-run-action { align-items: stretch; flex-direction: column; }
+  .simulator .operation-input-unit { gap: 5px; }
+  .simulator .operation-input-unit > span { font-size: 10px; }
+  .simulator .operation-text-button { font-size: 11px; }
+  .simulator .operation-transport { gap: 9px; }
+  .simulator .operation-playback .product-button { padding: 8px 10px; font-size: 11px; }
+  .simulator .operation-canvas { padding: 16px 12px; }
+  .simulator .operation-state { column-gap: 14px; }
+  .simulator .operation-waiting p { font-size: 9px; }
+  .simulator .operation-counts dd { font-size: 18px; }
+}
