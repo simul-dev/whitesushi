@@ -46,4 +46,75 @@ Application / Project / Scenario
 
 `initialPlan`은 마운트 시 검증·복제한다. `onPlanChange`는 초기 문서 및 편집/undo/import 후 분리된 사본을 알린다. 부모가 이 사본을 수정해도 편집기 상태를 손상시키지 않는다. 다른 문서를 열 때 React `key`를 바꿔 선택·검토·히스토리를 초기화한다. 단순한 단계 이동은 편집기를 유지해야 한다. 전체 Wizard는 Phase 8 범위다.
 
-공통 도메인 및 병렬 개발 계약은 Phase 2 결과에 맞춰 이어서 기록한다.
+## Core 및 Application 경계 (Phase 2)
+
+`src/core/index.ts`가 공통 공개 API다. 내부 타입은 JSON 값과 명시적 단위만 사용하며 React/DOM/PDF.js/Three.js 의존성이 없다. `src/architecture.test.ts`는 타입 import를 포함한 실제 TypeScript 의존 그래프를 검사해 이 경계를 지킨다.
+
+| 계약 | 역할 |
+|---|---|
+| Project / Site | 프로젝트 ID·revision·시점, 후보 위치·시간대, 기준 설정, 레이아웃 등록부 |
+| StoreLayout | 원본 참조, mm 형상, m² 면적, 관측 객체 수, 명시적 운영 역할·정원 |
+| MarketProfile | 공급자/버전·observed/manual/derived/demo, 관측 기간, 요일·시간별 인구/유동인구 |
+| DemandParameters / DemandProfile | 이해 가능한 비율·보정값, 개별 고객/시간 도착 수요, 시장/파라미터 계보 |
+| OperationPolicy | 모델 ID/버전, 영업 시간, 자원 수, seconds 서비스 시간, 객단가/통화 |
+| SimulationConfig | seed, dayType, 시작 시각, 실행 길이, 반복 횟수 |
+| Scenario | Project 참조, revision, 이름, typed overrides |
+| SimulationRun / Result | 입력 snapshot, seed/버전/가정, 실행 상태, 단위가 명시된 결과 계약 |
+| FinancialAssumption / Result | 비용/통화/기간, 실행 참조·가정 snapshot, 재무 결과 계약 |
+
+### Space → StoreLayout
+
+`toStoreLayout(plan, options)`는 `FloorPlan`을 검증하고 **별도 사본**을 만든다. source의 documentVersion은 기존 포맷 버전, documentRevision은 편집 문서 revision, StoreLayout.revision은 배포 가능한 레이아웃 revision이다. 렌더러 객체나 원본 이미지 bytes를 도메인 형상에 섞지 않는다.
+
+- 모든 벽·문·창·영역·객체를 `geometry.elements`에 안정적인 ID로 전달한다. 좌표는 x 오른쪽/y 아래/z 위, 회전은 도 단위다. 원본 confidence/source/reviewed와 벽 연결도 전달한다.
+- `totalAreaM2`는 외곽 다각형을 우선하고, 없으면 bounds 추정임을 표시한다. hall/kitchen/service 면적은 해당 역할을 지정한 공간 footprint의 합이다. 합집합·순면적 계산은 아니다.
+- `chairCount`는 관측된 개별 의자 수다. `confirmedCapacity`는 **모든 테이블에 명시적 정원이 배정된 경우에만** 그 합을 반환한다. 벤치 포함 여부는 사용자가 지정한 테이블 정원에 반영해야 한다.
+- `LayoutMapping`의 entranceIds, tableCapacities, kitchenStationIds, serviceStationIds, zoneRoles로 운영 의미를 입력한다. 자동 명칭 추론은 하지 않으며 잘못된 ID·범주·정원은 거부한다.
+- 부족한 매핑은 issues로 남는다. 기존 도면의 자유 확장 필드는 원본 문서에 그대로 남으며 core 형상 계약으로 전부 복사하지 않는다.
+- 기존 편집기에서 벽을 삭제해 문이 없는 벽을 참조하더라도 원본 문서를 수정하지 않는다. 파생 형상은 그 연결을 생략하고 `unresolved-wall-reference`를 남긴다. 공간 편집은 유지되며 분석 실행 전 연결을 검토해야 한다.
+
+`src/application/spaceProject.ts`의 `createSpaceProject` / `publishSpaceDocument`는 원본 문서와 core 프로젝트를 연결한다. 레이아웃은 `(id, revision)`으로 등록되고 기준 설정은 참조만 갖는다. 예전 revision을 고정한 시나리오는 새 공간 편집에 의해 바뀌지 않는다. 동일 문서의 반복 알림은 revision을 늘리지 않는다.
+
+이 연결 서비스는 **검토/단계 이동 등의 명시적 checkpoint**에서 사용할 API다. 매 포인터 이동에 새 revision을 등록하는 자동 저장 기능은 추가하지 않았다. 다른 PDF로 바꿀 때는 기존 매핑을 명시적으로 비우거나 다시 지정해야 한다. 전체 Project UI·영속 저장·통합 Wizard는 후속 작업이다. 현재 최상위 화면은 기존 SpaceWorkspace를 유지한다.
+
+### Project와 Scenario 사용 규칙
+
+- `createProject`, `updateProject`, `registerLayout`, `updateProjectBase`는 입력을 변경하지 않는 함수다. ID/ISO 시점은 호출자가 제공한다. 현재는 메모리상의 API이며 외부 Project JSON을 읽는 parser나 DB 구현은 없다.
+- 기준 섹션 갱신은 전체 섹션 교체다. 등록된 같은 `(layoutId, revision)`은 덮어쓸 수 없다.
+- `createScenario`, `updateScenario`, `deleteScenario`, `resolveScenario`를 제공한다. 시나리오는 기준 설정을 복제하지 않는다.
+- override의 생략은 상속, `null`은 해제, 배열은 전체 교체다. operation의 resources/durations만 필드별 병합하며 임의의 재귀 merge는 하지 않는다.
+- 부분 override를 적용하려면 해당 기준 섹션이 먼저 완성되어야 한다. 알 수 없는 설정이나 NaN·음수 정원·범위 밖 비율을 조용히 적용하지 않는다.
+- `updateScenario`에 전달한 overrides는 이전 override 문서를 대체한다. 필드를 제거하면 다시 기준값을 상속한다.
+- 해석 결과는 분리된 사본이며, 후속 모듈이 수정해도 Project/다른 시나리오를 손상시키지 않는다.
+
+### 분석 실행의 준비·추적·재사용
+
+`prepareSimulationInput(project, engine, scenarioId?)`는 실행 대신 준비 상태를 반환한다. 시장/수요/운영/시간 설정 누락, 이전 위치의 시장 자료, 이전 시장/가정에서 만든 수요, 미확정 정원·필수 역할·시간대 누락을 구분한다. 이를 통과해도 DES가 실행된 것은 아니다.
+
+`prepareSimulationRun`은 실제 유효 입력과 upstream 시장·수요 가정, engine/model/provider 버전, seed, project/scenario 참조를 분리된 frozen snapshot에 담는다. 동일 입력의 순서 독립적인 canonical JSON content key와 추적 참조용 integrity key를 사용한다. 이 키는 보안 서명이 아니라 재사용/변조 감지용 값 비교다.
+
+`assessRunStaleness`는 다음을 확인한다.
+
+- 입력 내용, source 계보, seed 또는 엔진 버전 변경 → 재실행 필요.
+- 다른 프로젝트, 삭제된 시나리오, 수정된 과거 snapshot → 재사용 불가.
+- 프로젝트/시나리오 표시명과 비용 가정만 변경 → 운영 시뮬레이션은 그대로 사용할 수 있음.
+- 재무 결과는 별도의 입력·엔진 content key로 갱신 여부를 판별함.
+
+`completeSimulationRun` / `failSimulationRun`은 준비된 실행만 종결하고 결과 ID·시간·수치 범위를 검사한다. 테스트에서 제공하는 결과는 계약 fixture일 뿐 실제 매출/운영 결과가 아니다. 아직 엔진/RNG 구현이 없으므로 동일 seed의 실제 이벤트 재현성 검증은 Phase 5에 남아 있다.
+
+Core 함수들은 타입이 정해진 내부 호출 경계와 수치·참조 검증을 제공한다. 외부에서 임의 JSON을 Project로 강제 캐스팅해 넣는 parser로 사용하면 안 된다. 기존 FloorPlan 외부 import는 계속 Space의 `validatePlan`을 사용한다.
+
+## 다음 단계 병렬 개발 계약
+
+| 담당 | 입력 → 출력 | 의존하지 않는 것 | 자체 검증 기준 |
+|---|---|---|---|
+| Market (Phase 3) | Site + 관측 기간 → MarketProfile | Space UI, Demand 계산 | 출처·관측 구간·단위·demo 표시, 누락 데이터 |
+| Demand (Phase 4) | MarketProfile + DemandParameters → DemandProfile | provider 구현, 시뮬레이션 | 비율 경계, 시간별 변환, 입력 계보, 가정 |
+| Operation / Simulation (Phase 5) | StoreLayout + DemandProfile + OperationPolicy + config → SimulationResult | React/PDF/3D, Market 직접 조회, 재무 계산 | seed 재현, 자원/고객 보존, 종료 정책, KPI 분모 |
+| Financial (Phase 7) | 완료 실행 + FinancialAssumption → FinancialResult | 시뮬레이션 내부 이벤트 | 기간/통화·비용 중복·null 분모·가정 계보 |
+
+각 작업은 `src/core` 공개 계약과 독립 fixture를 사용한다. Market이 실제 API 없이 시작할 때 demo임을 명시하고, Demand/Simulation은 공급자 네트워크 없이 계약 fixture로 개발할 수 있다. 실제 모듈 구현은 아직 없으며 API 키가 준비되지 않았다는 이유로 Phase 2를 넘어서 mock 결과를 만들지 않았다.
+
+`OperationModel.defineProcess`가 자원·단계·시간 분포·FIFO 획득/해제·대기 만료·종결 상태를 가진 선언적 `OperationProcess`를 제공한다. `SimulationEngine.run`은 snapshot과 버전이 일치하는 OperationModel을 주입받는다. 향후 엔진은 업종별 단계 이름을 하드코딩하지 않고 이 과정을 실행한다. 현재 OperationPolicy의 자원/시간 항목은 Restaurant 기준이며 다른 업종의 정책 확장은 해당 단계에서 버전 관리한다. 이 단계에는 Restaurant 과정 정의나 이벤트 스케줄러 구현이 없다.
+
+Phase 3~5 착수 전 구체화할 항목: Market의 집계 반경/기간·개인정보/라이선스, lunch/dinner 시간 구간, 고객 개인→일행/테이블 배정 정책, 대기 이탈/영업 종료 처리, delivery 자원 경합, 영업 자원과 공간 매핑의 완결성이다. 이는 이미 실행되는 기능이 아니라 다음 모듈의 모델링 결정이다.

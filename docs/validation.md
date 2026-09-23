@@ -2,7 +2,9 @@
 
 2026-09-23, Windows / Node.js 22.23.2 / Chrome headless WebGL로 실행했습니다.
 
-최종 결과: **프로덕션 빌드 성공, 단위·형상 테스트 37개 통과, 브라우저 시나리오 6개 통과.** 최종 정규화 JSON은 벽19개·문6개·공간7개·가구/설비125개로 총157개 요소입니다. 재현 스크립트의 JSON이 최종 `floorplan.json`과 완전히 일치합니다.
+현재 결과 (Architecture Phase 0~2): **프로덕션 빌드 성공, 단위·도메인·형상·경계 테스트 86개 통과, 브라우저 시나리오 9개 통과.** `/whitesushi/` 배포 경로 smoke도 통과했습니다. 단계별 근거는 [개발 계획과 실행 기록](development-plan.md), 변경 전 기준선은 [감사 문서](current-system-audit.md)에 있습니다.
+
+아래는 보존한 기존 Floor Plan → 3D 검증 내용입니다. 최초 기준선은 단위·형상 테스트 37개와 브라우저 시나리오 6개였고, 최종 정규화 JSON은 벽19개·문6개·공간7개·가구/설비125개로 총157개 요소입니다. 재현 스크립트의 JSON이 최종 `floorplan.json`과 완전히 일치합니다.
 
 ## 실제 브라우저
 
@@ -31,7 +33,7 @@
 
 ## 증거와 한계
 
-`tmp/e2e/`에 UI 화면·JSON·GLB·GLTF·6개 PNG·ZIP이 있습니다. 테스트 코드는 `tests/workflow.spec.ts`, `src/*.test.ts`입니다.
+`tmp/e2e/`에 UI 화면·JSON·GLB·GLTF·6개 PNG·ZIP이 있습니다. 기존 테스트 코드는 `tests/workflow.spec.ts`, `src/modules/space/*.test.ts`입니다. `tests/space-boundary.spec.ts`, `src/core/core.test.ts`, `src/application/spaceProject.test.ts`, `src/architecture.test.ts`가 모듈·도메인 회귀를 검사합니다. 최종 원본 hash/출력 비교는 `tmp/phase2-verification.json`에 있습니다.
 
 최종 기준 출력은 `output/sample/`에 보관했습니다. GLB는1,391,688바이트이며 GLTFLoader로 재로드한 모델 경계 오차는 **0 m**입니다. `output/sample/verification.json`에 수치가 있습니다. 원본과 도형의 중첩 검증은 [비교 이미지](figures/source-overlay.png)로 확인할 수 있습니다.
 
