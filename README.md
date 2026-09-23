@@ -1,6 +1,6 @@
 # AI Store Simulator — Space
 
-현재 범위는 **Phase 0~2: 기존 시스템 감사, Space 모듈 분리, 공통 도메인·Project·Scenario 기반**입니다. 기존 Floor Plan to 3D 화면과 파일 호환성은 유지합니다. 상권 API, 수요 모델, 운영 DES, 민감도·재무 계산과 통합 Wizard는 아직 구현하지 않았습니다. 구조와 다음 단계는 [아키텍처](docs/architecture.md), [개발 계획](docs/development-plan.md), [기준선 감사](docs/current-system-audit.md)를 참조하세요.
+현재 범위는 **Phase 0~5: Space·Core·Project·Scenario 기반, Market demo provider, Demand 모델, Restaurant DES**입니다. 기존 Floor Plan to 3D 화면과 파일 호환성을 유지하며 분석 엔진은 UI 없이 실행합니다. 실제 상권 API, 민감도·재무 엔진과 통합 Wizard는 후속 범위입니다. 구조와 검증 기록은 [아키텍처](docs/architecture.md), [개발 계획](docs/development-plan.md), [시뮬레이션 모델](docs/simulation-model.md), [데이터 출처](docs/data-sources.md)를 참조하세요. `src/application/storeAnalysis.ts`가 전체 pipeline API이고 같은 경로의 테스트가 샘플 StoreLayout을 포함한 실행 예제입니다.
 
 평면도 PDF를 원본과 비교하며 수정하고, **FloorPlan JSON을 기준으로 3D 모델과 정투영 이미지를 생성**하는 로컬 웹 MVP입니다. React + TypeScript + Vite, PDF.js, SVG, Three.js를 사용합니다. 서버·계정·유료 API가 필요 없으며 업로드한 파일은 브라우저 안에서 처리합니다.
 

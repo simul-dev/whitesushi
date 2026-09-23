@@ -1,8 +1,8 @@
 # AI Store Simulator 공통 가정
 
-이 문서는 Phase 0~2에서 결정한 아키텍처 가정이다. 실제 도면의 높이·형상·재질 가정은 기존 [루트 assumptions.md](../assumptions.md)에 유지한다.
+이 문서는 Phase 0~5의 아키텍처 및 분석 가정이다. 실제 도면의 높이·형상·재질 가정은 기존 [루트 assumptions.md](../assumptions.md)에 유지한다.
 
-- **범위**: 지금은 공간 검토와 도메인 기반만 구현한다. 상권·수요·운영·민감도·재무 예측을 실행하지 않는다. 결과 없음은 0 또는 성공으로 표시하지 않는다.
+- **범위**: 공간 검토와 Market demo → Demand → 운영 DES를 구현한다. 실제 시장 예측·재무 엔진·민감도 UI는 없다. DES의 revenue=0은 호환성 placeholder이며 `revenueStatus: not-modeled`와 함께 해석한다.
 - **단위**: 공간 좌표 mm, 면적 m², 운영 시간 seconds, 시간대별 유동인구와 개별 고객 도착 수요는 서로 다른 계약으로 구분한다. 확률·비율은 0~1이며 % UI 변환은 경계에서 한다. 금액에는 통화와 적용 기간이 필요하다.
 - **면적**: floorOutline 다각형 면적을 우선한다. 외곽이 없는 경우 bounds 사각형은 추정 면적이다. 벽·가구 공제 및 중첩 영역 합집합은 계산하지 않으므로 법정/실사용 면적을 뜻하지 않는다.
 - **좌석**: 개별 의자 개수와 확정 영업 정원을 구분한다. 벤치 정원 및 테이블별 수용 인원은 명시적으로 확인해야 한다. 객체 이름으로 운영 능력을 추측하지 않는다.
@@ -12,6 +12,28 @@
 - **실행 추적**: 입력·seed·알고리즘 버전·시나리오·가정을 함께 저장해야 한다. 사후 수정으로 과거 실행의 입력을 바꾸지 않는다. 입력 변경 후에는 결과 재사용 가능 여부를 확인한다.
 - **저장**: 현재 UI 편집은 브라우저 메모리에 있으며 서버 저장/자동 저장/다중 사용자 기능은 없다. 도메인 저장소 인터페이스가 실제 DB 구현을 의미하지 않는다.
 - **공개 범위**: 현재 공개 샘플과 GitHub Pages 설정은 유지한다. 새 프로젝트 구조를 만드는 것만으로 도면 접근 제어가 생기지 않는다.
-- **재현성**: 실제 랜덤 도착/서비스 이벤트는 Phase 5에서 구현한다. 현재 seed와 snapshot 계약만으로 아직 없는 엔진의 재현성을 검증했다고 주장하지 않는다.
+- **재현성**: Phase 5 엔진은 동일 snapshot/모델 버전/unsigned 32-bit seed에서 동일 결과를 생성한다. 단일 실행은 통계적 확신을 제공하지 않으며 여러 독립 seed의 비교·구간 추정은 Phase 6에서 다룬다.
 
 모호한 정보는 설명 가능한 미설정 상태로 남긴다. 이후 실제 데이터가 들어오면 출처와 적용 시점 및 검토 여부를 함께 기록한다.
+
+## Market와 Demand
+
+- Market은 모든 위치·기간에 동일한 synthetic typical-day 패턴을 사용한다. 위치 변경은 계보를 바꾸지만 실제 지역 차이를 추정하지 않는다. 기간은 요청 label, 반경 기본값 500m는 예시 범위다.
+- 인구는 한 시간의 stock, 유동인구는 중복 통행을 포함할 수 있는 persons/hour, 수요는 customers/hour다. 인구를 합쳐 도착 고객으로 만들지 않으며 누락 유동인구를 0이나 인구로 대체하지 않는다.
+- 수요식: `traffic × categoryParticipationRate × brandShare × visitConversionRate × day × meal × weatherEvent × hourly`. 배달 몫을 뺀 `total × (1-deliveryRatio)`만 DES 도착 입력이다.
+- category/brand/conversion 기본값은 각각 0.2/0.1/0.1, 비율 범위 [0,1]. 모든 기본값은 미보정 예시다. deliveryRatio 기본값 0, 범위 [0,1].
+- weekday/weekend/lunch/dinner/weatherEvent multiplier 기본값은 1이며 유한한 0 이상 값만 허용한다. 이미 시장에 포함된 시간대 패턴을 중복 보정하지 않도록 중립값을 사용한다. optional hourly multiplier는 dayType/hour별 [0,10], 생략 시 1이다.
+- 점심은 현지 시각 [11,14), 저녁 [17,21), holiday에는 weekend 보정을 적용한다. 날짜별 달력·기상 조회는 하지 않는다.
+- 큰 multiplier는 traffic을 넘는 시나리오 기대량을 만들 수 있다. 이는 고유 인원의 확률이 아니며 자동 clipping은 하지 않는다. 유한 범위를 넘는 연산은 실패한다.
+- 배달 몫은 별도 관측 배송 시장이 아니라 전환된 수요의 가정상 분리다. 배달 조리·배달기사·수수료는 모델링하지 않으므로 배달이 있는 실제 주방의 전체 부하를 이 결과로 단정할 수 없다.
+- 결과는 조건부 시나리오 기대값이며 미래 확정 예측이 아니다. 각 bucket breakdown과 assumptions, source/parameters content key를 보존한다. 파라미터 기본값·단위·설명·범위는 `DEMAND_PARAMETER_DEFINITIONS`에서 조회한다.
+
+## Restaurant DES
+
+- 공간 sample 통합 테스트의 테이블당 4석, 출입구 `door-entry`, 주방 `range`, 서비스 `self-bar`는 명시적인 테스트 가정이다. 원본 도면에서 운영 정원이 확인되었다는 뜻이 아니다.
+- 일행 기본값은 1명 확률 1이다. 평균 일행 크기로 개인 도착률을 나누어 일행 도착률을 만들고 seed로 실제 크기를 샘플링한다. Poisson 일행의 총 고객 수는 compound process이며 모든 시간의 실제 인원이 기대값과 일치하지 않는다.
+- 한 일행은 하나의 적합한 테이블을 독점하며 합석·테이블 결합은 없다. pooled 좌석도 별도로 점유하며 테이블과 좌석은 청소 후 종료 때 해제한다.
+- 조리 중에는 일행당 주방 slot 1개와 cook 1명을 계속 사용한다. 규모별 메뉴/조리 batching·cook의 병렬 감시는 생략한다. 서버는 주문·서빙·청소, cashier는 결제 자원이다.
+- 기본 시간은 주문 90초, 조리 600초, 서빙 45초, 식사 1200초, 결제 45초, 청소 90초. 자원은 cooks 2, servers 2, cashiers 1, kitchenConcurrentOrders 4. 기본 영업은 각 dayType 11:00~21:00. 모두 교정이 필요한 demo 기본값이다.
+- 기본 입장 patience 1800초, null이면 무기한이다. 자원 부족은 대기로 표현하며 시간 만료는 lost, 관측 종료 시 처리 중인 고객은 unfinished다. served는 청소를 포함한 과정 종료를 기준으로 한다.
+- 고정 관측 horizon 이후까지 drain하지 않는다. 영업시간 밖 새 도착은 만들지 않고, 이미 들어온 고객은 horizon까지 처리한다. 실행 시간·분모와 제한 사항은 [simulation-model.md](simulation-model.md)를 따른다.

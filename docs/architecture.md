@@ -2,7 +2,7 @@
 
 ## 방향과 현재 범위
 
-기존 FloorPlan → 3D 동작을 보존하면서 Space와 공통 도메인을 분리한다. 이번 작업은 Phase 0~2이며, 상권 수집·수요 계산·운영 DES·재무 계산 및 통합 Wizard는 후속 단계다. 계산 결과가 없는 모듈에 가짜 KPI를 표시하지 않는다.
+기존 FloorPlan → 3D 동작을 보존하면서 Space와 공통 도메인을 분리한다. Phase 0~5의 Market demo provider, 설명 가능한 Demand 모델, Restaurant 운영 모델과 DES를 구현했다. 재무 계산·시나리오 비교 UI·통합 Wizard는 후속 단계다. 현재 Space 화면은 유지하며 분석은 UI 없는 공개 API로 실행한다.
 
 의존 방향은 `Application → Module public API → Core contracts`다. Core는 React, Three.js, PDF.js, DOM 및 네트워크에 의존하지 않는다. Space는 기존 FloorPlan을 소유하고, 다른 모듈에는 명시적인 StoreLayout 어댑터 출력을 제공한다.
 
@@ -100,7 +100,7 @@ Application / Project / Scenario
 - 프로젝트/시나리오 표시명과 비용 가정만 변경 → 운영 시뮬레이션은 그대로 사용할 수 있음.
 - 재무 결과는 별도의 입력·엔진 content key로 갱신 여부를 판별함.
 
-`completeSimulationRun` / `failSimulationRun`은 준비된 실행만 종결하고 결과 ID·시간·수치 범위를 검사한다. 테스트에서 제공하는 결과는 계약 fixture일 뿐 실제 매출/운영 결과가 아니다. 아직 엔진/RNG 구현이 없으므로 동일 seed의 실제 이벤트 재현성 검증은 Phase 5에 남아 있다.
+`completeSimulationRun` / `failSimulationRun`은 준비된 실행만 종결하고 결과 ID·시간·수치 범위를 검사한다. 기존 Phase 2 테스트의 결과는 계약 fixture다. Phase 5 엔진은 실제 이벤트를 실행하며 동일 seed 재현성, 고객 보존, 시간별 처리량 합계를 검증한다. `validateSimulationSnapshot`은 엔진 실행 전에 기존 content/integrity key를 확인한다.
 
 Core 함수들은 타입이 정해진 내부 호출 경계와 수치·참조 검증을 제공한다. 외부에서 임의 JSON을 Project로 강제 캐스팅해 넣는 parser로 사용하면 안 된다. 기존 FloorPlan 외부 import는 계속 Space의 `validatePlan`을 사용한다.
 
@@ -113,8 +113,30 @@ Core 함수들은 타입이 정해진 내부 호출 경계와 수치·참조 검
 | Operation / Simulation (Phase 5) | StoreLayout + DemandProfile + OperationPolicy + config → SimulationResult | React/PDF/3D, Market 직접 조회, 재무 계산 | seed 재현, 자원/고객 보존, 종료 정책, KPI 분모 |
 | Financial (Phase 7) | 완료 실행 + FinancialAssumption → FinancialResult | 시뮬레이션 내부 이벤트 | 기간/통화·비용 중복·null 분모·가정 계보 |
 
-각 작업은 `src/core` 공개 계약과 독립 fixture를 사용한다. Market이 실제 API 없이 시작할 때 demo임을 명시하고, Demand/Simulation은 공급자 네트워크 없이 계약 fixture로 개발할 수 있다. 실제 모듈 구현은 아직 없으며 API 키가 준비되지 않았다는 이유로 Phase 2를 넘어서 mock 결과를 만들지 않았다.
+각 작업은 `src/core` 공개 계약과 독립 fixture를 사용한다. Market은 실제 API 연결 없이 명시적인 demo provider를 제공한다. Demand/Simulation 단위 테스트는 네트워크나 다른 모듈 내부 구현에 의존하지 않는다. `src/architecture.test.ts`는 네 모듈이 서로의 내부 파일, UI, 렌더러를 참조하지 않는지도 검사한다.
 
-`OperationModel.defineProcess`가 자원·단계·시간 분포·FIFO 획득/해제·대기 만료·종결 상태를 가진 선언적 `OperationProcess`를 제공한다. `SimulationEngine.run`은 snapshot과 버전이 일치하는 OperationModel을 주입받는다. 향후 엔진은 업종별 단계 이름을 하드코딩하지 않고 이 과정을 실행한다. 현재 OperationPolicy의 자원/시간 항목은 Restaurant 기준이며 다른 업종의 정책 확장은 해당 단계에서 버전 관리한다. 이 단계에는 Restaurant 과정 정의나 이벤트 스케줄러 구현이 없다.
+`OperationModel.defineProcess`가 자원·단계·시간 분포·FIFO 획득/해제·대기 만료·종결 상태를 가진 선언적 `OperationProcess`를 제공한다. `SimulationEngine.run`은 snapshot과 버전이 일치하는 OperationModel을 주입받는다. 구현된 generic scheduler는 업종별 단계 이름을 하드코딩하지 않는다. 현재 OperationPolicy의 자원/시간 항목은 Restaurant 기준이며 다른 업종의 정책 확장은 해당 단계에서 버전 관리한다.
 
-Phase 3~5 착수 전 구체화할 항목: Market의 집계 반경/기간·개인정보/라이선스, lunch/dinner 시간 구간, 고객 개인→일행/테이블 배정 정책, 대기 이탈/영업 종료 처리, delivery 자원 경합, 영업 자원과 공간 매핑의 완결성이다. 이는 이미 실행되는 기능이 아니라 다음 모듈의 모델링 결정이다.
+## Phase 3~5 구현과 통합
+
+| 공개 진입점 | 구현과 책임 |
+|---|---|
+| `modules/market` | `MockMarketProvider`, `fetchMarketProfile`; 출처·공간/시간 해상도·누락·오류/timeout 처리 |
+| `modules/demand` | `TransparentDemandModel`, `createDefaultDemandParameters`, parameter metadata; traffic → dine-in arrivals 및 계산 breakdown |
+| `modules/operation` | `RestaurantOperationModel`, `createRestaurantPolicy`; 테이블/좌석·주방·직원과 운영 과정 정의 |
+| `modules/simulation` | `DiscreteEventSimulationEngine`; seeded 도착/서비스 이벤트·자원 경합·대기·종결 및 KPI |
+| `application/storeAnalysis.ts` | `analyzeStoreProject`; 명시적으로 설정된 기준 프로젝트의 Market → Demand → 준비 → DES → 완료/실패를 연결 |
+
+Application 서비스는 provider/model/engine을 주입받고 입력 Project를 복제한다. Market 실패 시 명시적 unavailable issue를 반환하고 demo로 자동 대체하지 않는다. 수요 재계산 후 새 Project 사본에 시장·수요를 저장하며 준비가 실패하면 엔진을 실행하지 않는다. engine 실패는 준비 snapshot을 보존하는 failed run으로 반환한다. 호출자가 ID·기간·시점을 제공한다. 시나리오 반복실험·저장·Wizard UI는 추가하지 않았다.
+
+Market의 확장 metadata와 Demand의 bucket breakdown은 기존 profile의 하위 타입이다. 기존 `MarketProvider.fetch`, `DemandModel.calculate`, `OperationModel`, `SimulationEngine.run`의 시그니처는 유지했다. 공통 schemaVersion은 1이며 기존 fixture는 다음 선택 필드 없이도 유효하다.
+
+| 최소 계약 확장 | 이유 및 영향 |
+|---|---|
+| `DemandParameters.hourlyMultipliers?` | 시간별 가정을 content key/시나리오 상속에 포함. 생략 시 1, 중복 시간 및 범위 밖 값 거부 |
+| `OperationPolicy.partySizeDistribution?`, `maxQueueWaitSeconds?` | 개인 도착률을 일행으로 변환하고 입장 대기 이탈을 명시. 배열 override는 전체 교체하며 깊은 사본을 사용 |
+| `OperationProcess` 일행 분포, 자원 category/unitCapacities, 요구량 unitsPerCustomer/minimumUnitCapacity | generic 엔진에 테이블 크기·일행 좌석 요구량·KPI 분류를 선언. Restaurant 내부 이름에 엔진이 의존하지 않음 |
+| `SimulationResult.customersUnfinished?`, `hourlyThroughput?`, `resourceUtilization?`, `revenueStatus?` | 관측 종료 시 고객 보존과 자원별 결과 추적. 새 엔진은 모두 제공. 기존 revenue 숫자는 0이고 `not-modeled`로 구분 |
+| Core validator 공개 export 및 `validateSimulationSnapshot` | 모듈이 Core 내부 파일을 import하거나 snapshot 검사 공식을 중복하지 않도록 함 |
+
+구체적 수요 가정은 [assumptions.md](assumptions.md), 데이터 한계는 [data-sources.md](data-sources.md), 이벤트·KPI 정의는 [simulation-model.md](simulation-model.md)에 기록한다. 배달은 수요 채널 분리까지만 제공하며 매장 DES의 자원 부하에는 포함하지 않는다. 통행거리·동선 충돌, 실제 수요 예측, 수익 모델은 구현하지 않았다.

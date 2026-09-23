@@ -1,9 +1,10 @@
-# Core contracts (Phase 2)
+# Core contracts (Phase 2, extended for Phase 3–5)
 
 Pure TypeScript contracts and configuration/provenance operations live here. They
 do not import Space, React, Three.js, PDF.js, a server, or a third-party dependency.
-Market, Demand, restaurant process, simulation and finance implementations are
-deliberately deferred. Test fixtures are labelled demo data, not live providers.
+Market, Demand, restaurant process and simulation implementations live in their
+independent modules. Finance is deferred. Test fixtures and the mock Market
+provider are labelled demo data, not live observations.
 
 ## Public boundary
 
@@ -85,10 +86,10 @@ results and financial assumptions separately.
   release points, timeout transitions and terminal outcomes. It contains the
   industry-specific process; the generic engine schedules it.
 - Simulation receives a snapshot and an injected `OperationModel` whose descriptor
-  must match `snapshot.input.operation.model`. The future engine must validate
-  that match and graph/resource consistency, use only seeded randomness, derive
-  replication seeds deterministically, and include changes in engine/model
-  versions. No restaurant stages or model registry are implemented here.
+  must match `snapshot.input.operation.model`. The engine validates
+  that match and graph/resource consistency, uses only seeded randomness, and
+  executes one caller-seeded replication per run. Algorithm changes require new
+  engine/model versions. No restaurant stages or registry live inside Core.
 - Finance implements `FinancialEngine.calculate` from completed runs plus costs;
   monthly scaling assumptions and currency must remain explicit.
 
