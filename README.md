@@ -2,7 +2,7 @@
 
 현재 범위는 **Phase 0~7 + Delivery: Space·Core·Market demo·Demand·Restaurant DES·반복실험·민감도·재무 엔진**입니다. 기존 Floor Plan to 3D 화면과 파일 호환성을 유지하며 분석 엔진은 UI 없이 실행합니다. 실제 상권 API와 통합 Wizard/Dashboard는 후속 범위입니다. 구조와 검증 기록은 [아키텍처](docs/architecture.md), [개발 계획](docs/development-plan.md), [시뮬레이션](docs/simulation-model.md), [시나리오·민감도](docs/scenario-sensitivity.md), [재무 모델](docs/financial-model.md)을 참조하세요.
 
-새 엔진의 진입점은 `src/application/scenarioAnalysis.ts`의 `createComparisonScenarios` / `compareStoreScenarios`입니다. Conservative·Baseline·Optimistic·Custom의 홀/배달 수요, 운영 집계, 월간 재무 결과를 반환합니다. 실행 가능한 전체 예제는 `src/application/scenarioAnalysis.test.ts`이며 `npx vitest run src/application/scenarioAnalysis.test.ts`로 확인합니다. 기존 단일 실행은 `analyzeStoreProject`를 계속 사용합니다. `npm run dev`의 브라우저 화면은 Space 편집기이며 이번 단계에서 분석 화면은 추가하지 않았습니다.
+새 엔진의 진입점은 `src/application/scenarioAnalysis.ts`의 `createComparisonScenarios` / `compareStoreScenarios`입니다. Conservative·Baseline·Optimistic·Custom의 홀/배달 수요, 운영 집계, 월간 재무 결과를 반환합니다. 실행 가능한 전체 예제는 `src/application/scenarioAnalysis.test.ts`입니다. Windows PowerShell에서는 아래 스크립트 명령으로 확인합니다. 기존 단일 실행은 `analyzeStoreProject`를 계속 사용합니다. 브라우저 화면은 Space 편집기이며 이번 단계에서 분석 화면은 추가하지 않았습니다.
 
 평면도 PDF를 원본과 비교하며 수정하고, **FloorPlan JSON을 기준으로 3D 모델과 정투영 이미지를 생성**하는 로컬 웹 MVP입니다. React + TypeScript + Vite, PDF.js, SVG, Three.js를 사용합니다. 서버·계정·유료 API가 필요 없으며 업로드한 파일은 브라우저 안에서 처리합니다.
 
@@ -11,6 +11,20 @@
 ## 설치와 실행
 
 Node.js **22.12 이상**이 필요합니다.
+
+Windows PowerShell에서 `node`/`npm`/`npx`를 찾지 못할 때는 프로젝트 폴더에서 다음 명령을 사용하세요. 스크립트가 `%USERPROFILE%\.local\node`의 portable Node.js를 찾아 실행하며 시스템 PATH는 변경하지 않습니다.
+
+```powershell
+# 신규 시나리오·배달·재무 통합 테스트 (4개)
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1 -Task test src/application/scenarioAnalysis.test.ts
+
+# 기존 웹 화면 실행 (Task 생략 시 dev)
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1
+```
+
+전체 단위 테스트는 `-Task test`, 빌드는 `-Task build`, 브라우저 테스트는 `-Task test:e2e`를 사용합니다. 위 통합 테스트는 터미널에서 엔진을 검증하며 새 Dashboard를 열지는 않습니다.
+
+Node.js가 PATH에 등록된 환경에서는 다음 명령도 사용할 수 있습니다.
 
 ```sh
 npm ci
