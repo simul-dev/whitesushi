@@ -1,9 +1,9 @@
-# Core contracts (Phase 2, extended for Phase 3–5)
+# Core contracts (Phase 2, extended through Phase 7 and Delivery)
 
 Pure TypeScript contracts and configuration/provenance operations live here. They
 do not import Space, React, Three.js, PDF.js, a server, or a third-party dependency.
 Market, Demand, restaurant process and simulation implementations live in their
-independent modules. Finance is deferred. Test fixtures and the mock Market
+independent modules, including Scenario and Financial engines. Test fixtures and the mock Market
 provider are labelled demo data, not live observations.
 
 ## Public boundary
@@ -54,6 +54,19 @@ Market buckets are one-hour population/traffic observations. Demand buckets are
 Simulation seed is an unsigned 32-bit integer. Initial simulation windows fit
 one selected local day, and overnight operating windows must be split. Every
 simulated hour needs an explicit demand bucket; absent data is not zero demand.
+
+Optional independent delivery buckets use **orders/hour**, require legacy
+`deliveryRatio=0`, and never reduce dine-in demand. Delivery-enabled preparation
+requires explicit hourly coverage and, for positive demand, packaging/queue policy.
+The process declares channel start stages and queue metric tags; result completion
+checks order conservation, hourly sums, throughput and wait ranges separately
+from customers. Old dine-in-only inputs remain valid.
+
+Financial extensions preserve the original contract. Optional amounts are
+nonnegative in the named currency, and ratios use [0,1]. If supplied, monthly day
+weights must sum to operatingDaysPerMonth. Operation-linked labor requires zero
+legacy monthlyLabor to avoid double counting. The real financial module requires
+an explicit operatingDayMix and records any run-to-day extrapolation.
 
 ## Lineage and reproducibility
 

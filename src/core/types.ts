@@ -79,6 +79,14 @@ export interface DemandParameters {
   deliveryRatio: number;
   /** Optional explicit day/hour adjustments; omitted buckets use 1. */
   hourlyMultipliers?: { dayType: DayType; hour: number; multiplier: number }[];
+  /** Independent orders/hour, never subtracted from dine-in demand. Requires deliveryRatio=0. */
+  deliveryOrdersByHour?: DeliveryDemandBucket[];
+}
+export interface DeliveryDemandBucket {
+  dayType: DayType;
+  hour: number;
+  expectedOrdersPerHour: number;
+  distribution: "poisson" | "deterministic";
 }
 /** Arrivals are individual customers/hour (not customer parties). */
 export interface DemandBucket {
@@ -92,6 +100,7 @@ export interface DemandProfile extends ArtifactRef {
   provenance: Provenance;
   lineage: { marketRef: ArtifactRef; marketContentKey: string; parametersContentKey: string };
   buckets: DemandBucket[];
+  deliveryBuckets?: DeliveryDemandBucket[];
   assumptions: Assumption[];
 }
 export interface OperatingWindow { dayType: DayType; startMinute: number; endMinute: number }
@@ -111,6 +120,8 @@ export interface OperationPolicy {
   partySizeDistribution?: { size: number; probability: number }[];
   /** Admission queue patience in seconds; null means no timeout. */
   maxQueueWaitSeconds?: number | null;
+  /** Packaging consumes cooks; cooking shares the dine-in kitchen and cooks. */
+  delivery?: { packagingSeconds: number; maxQueueWaitSeconds: number | null };
 }
 /** Declarative industry process interpreted by a UI-independent event scheduler. */
 export type DurationDistribution = { kind: "constant"; seconds: number } | { kind: "exponential"; meanSeconds: number };
@@ -118,6 +129,7 @@ export interface OperationProcess {
   schemaVersion: 1;
   model: ModuleVersion;
   startStageId: string;
+  arrivalStreams?: { id: string; channel: "dine-in" | "delivery"; startStageId: string }[];
   partySizeDistribution?: { size: number; probability: number }[];
   /** Capacity units are defined by the model (e.g. server, kitchen slot, seat). */
   resources: {
@@ -130,6 +142,8 @@ export interface OperationProcess {
   stages: {
     id: string;
     duration: DurationDistribution;
+    /** Domain metric labels interpreted without hard-coded restaurant stage IDs. */
+    queueMetric?: "food-wait" | "kitchen-wait";
     /** Acquire atomically in FIFO order; release after this stage or process exit. */
     requirements: {
       resourceId: string; units: number; release: "stage-end" | "process-end";
@@ -164,6 +178,26 @@ export interface FinancialAssumption extends ArtifactRef {
   initialCapex: number;
   initialFranchiseFee: number;
   initialInteriorCost: number;
+  /** Currency/customer and currency/order respectively; revenue uses completed units. */
+  averageSpendingPerCustomer?: number;
+  averageDeliveryOrderValue?: number;
+  paymentFeeRatio?: number;
+  deliveryVariableCostPerOrder?: number;
+  monthlyMaintenance?: number;
+  monthlyInsurance?: number;
+  initialEquipmentCost?: number;
+  initialOtherInvestment?: number;
+  refundableDeposit?: number;
+  /** Explicit conversion from one observed run to a day, weighted by operating days. */
+  operatingDayMix?: { dayType: DayType; daysPerMonth: number; runToDayMultiplier: number }[];
+  labor?: { mode: "fixed-monthly" } | {
+    mode: "operation-linked";
+    monthlyCostPerCook: number;
+    monthlyCostPerServer: number;
+    monthlyCostPerCashier: number;
+    otherStaffCount: number;
+    monthlyCostPerOtherStaff: number;
+  };
   assumptions: Assumption[];
 }
 export interface ProjectConfiguration {
@@ -250,6 +284,15 @@ export interface SimulationResult {
   resourceUtilization?: { resourceId: string; capacityUnits: number; utilization: number }[];
   /** Numeric revenue fields remain zero for compatibility when no financial model ran. */
   revenueStatus?: "not-modeled";
+  averageDineInFoodWaitingSeconds?: number;
+  maxDineInFoodWaitingSeconds?: number;
+  delivery?: {
+    ordersArrived: number; ordersCompleted: number; ordersLost: number; ordersUnfinished: number;
+    throughputOrdersPerHour: number;
+    averageKitchenWaitingSeconds: number; maxKitchenWaitingSeconds: number;
+    averageTimeInSystemSeconds: number;
+    hourlyThroughput: { hour: number; ordersCompleted: number }[];
+  };
 }
 export interface SimulationRun {
   id: string;

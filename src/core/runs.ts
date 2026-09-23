@@ -58,7 +58,11 @@ export function prepareSimulationInput(project: Project, engine: ModuleVersion, 
     for (let hour = first; hour < last; hour++) {
       if (!config.demand.buckets.some((b) => b.dayType === config.simulation!.dayType && b.hour === hour))
         add("missing-demand-hour", `demand.buckets.${hour}`, `Explicit arrivals (including zero) are required for hour ${hour}`);
+      if (config.demand.deliveryBuckets !== undefined && !config.demand.deliveryBuckets.some((b) => b.dayType === config.simulation!.dayType && b.hour === hour))
+        add("missing-delivery-hour", `demand.deliveryBuckets.${hour}`, `Explicit delivery orders (including zero) are required for hour ${hour}`);
     }
+    if (config.demand.deliveryBuckets?.some((b) => b.dayType === config.simulation!.dayType && b.hour >= first && b.hour < last && b.expectedOrdersPerHour > 0) && !config.operation?.delivery)
+      add("missing-delivery-policy", "operation.delivery", "Configure packaging and queue patience for independent delivery orders");
   }
   if (issues.length) return { ok: false, issues };
   // Each nullable section was checked above; never synthesize missing parameters.
@@ -158,6 +162,41 @@ export function completeSimulationRun(run: SimulationRun, result: SimulationResu
     throw new DomainValidationError("result.revenueStatus", "unsupported revenue status");
   if (result.revenueStatus === "not-modeled" && (result.revenue !== 0 || result.revenueByHour.some((b) => b.revenue !== 0)))
     throw new DomainValidationError("result.revenue", "unmodeled revenue must remain zero");
+  for (const field of ["averageDineInFoodWaitingSeconds", "maxDineInFoodWaitingSeconds"] as const)
+    if (result[field] !== undefined) number(result[field], `result.${field}`);
+  if ((result.averageDineInFoodWaitingSeconds === undefined) !== (result.maxDineInFoodWaitingSeconds === undefined))
+    throw new DomainValidationError("result.foodWaiting", "average and maximum must be reported together");
+  if (result.averageDineInFoodWaitingSeconds !== undefined && result.maxDineInFoodWaitingSeconds! < result.averageDineInFoodWaitingSeconds)
+    throw new DomainValidationError("result.foodWaiting", "maximum is smaller than average");
+  const deliveryConfig = run.snapshot.input.config;
+  if (result.delivery === undefined && run.snapshot.input.demand.deliveryBuckets?.some((b) =>
+    b.dayType === deliveryConfig.dayType && b.hour >= Math.floor(deliveryConfig.startMinute / 60) &&
+    b.hour < Math.ceil((deliveryConfig.startMinute * 60 + deliveryConfig.durationSeconds) / 3600) && b.expectedOrdersPerHour > 0))
+    throw new DomainValidationError("result.delivery", "independent delivery demand requires delivery result accounting");
+  if (result.delivery !== undefined) {
+    const delivery = result.delivery;
+    for (const field of ["ordersArrived", "ordersCompleted", "ordersLost", "ordersUnfinished"] as const)
+      number(delivery[field], `result.delivery.${field}`, 0, Number.MAX_SAFE_INTEGER, true);
+    for (const field of ["throughputOrdersPerHour", "averageKitchenWaitingSeconds", "maxKitchenWaitingSeconds", "averageTimeInSystemSeconds"] as const)
+      number(delivery[field], `result.delivery.${field}`);
+    if (delivery.ordersCompleted + delivery.ordersLost + delivery.ordersUnfinished !== delivery.ordersArrived)
+      throw new DomainValidationError("result.delivery", "completed + lost + unfinished must equal arrivals");
+    if (delivery.maxKitchenWaitingSeconds < delivery.averageKitchenWaitingSeconds)
+      throw new DomainValidationError("result.delivery.waiting", "maximum is smaller than average");
+    const { startMinute, durationSeconds } = run.snapshot.input.config;
+    if (Math.abs(delivery.throughputOrdersPerHour - delivery.ordersCompleted * 3600 / durationSeconds) > 1e-8 * Math.max(1, delivery.throughputOrdersPerHour))
+      throw new DomainValidationError("result.delivery.throughputOrdersPerHour", "must equal completed orders per observation hour");
+    if (new Set(delivery.hourlyThroughput.map((b) => b.hour)).size !== delivery.hourlyThroughput.length)
+      throw new DomainValidationError("result.delivery.hourlyThroughput", "duplicate hour");
+    delivery.hourlyThroughput.forEach((b) => {
+      number(b.hour, "result.delivery.hourlyThroughput.hour", 0, 23, true);
+      number(b.ordersCompleted, "result.delivery.hourlyThroughput.ordersCompleted", 0, Number.MAX_SAFE_INTEGER, true);
+      if (b.hour < Math.floor(startMinute / 60) || b.hour >= Math.ceil((startMinute * 60 + durationSeconds) / 3600))
+        throw new DomainValidationError("result.delivery.hourlyThroughput.hour", "hour is outside the observation interval");
+    });
+    if (delivery.hourlyThroughput.reduce((sum, b) => sum + b.ordersCompleted, 0) !== delivery.ordersCompleted)
+      throw new DomainValidationError("result.delivery.hourlyThroughput", "hourly completions must sum to completed orders");
+  }
   canonicalJson(result);
   return freeze({ ...structuredClone(run), status: "completed", completedAt, result: structuredClone(result), error: null });
 }

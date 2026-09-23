@@ -5,5 +5,5 @@ export * from "./ports";
 export {
   canonicalJson, DomainValidationError, validateLayout, validateProject,
   validateSite, validateMarket, validateDemandParameters, validateDemand,
-  validateOperation, validateSimulation,
+  validateOperation, validateSimulation, validateFinancial,
 } from "./validation";

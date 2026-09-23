@@ -134,6 +134,10 @@ export function validateLayout(layout: StoreLayout) {
 export function validateDemandParameters(parameters: DemandParameters) {
   for (const key of ["categoryParticipationRate", "brandShare", "visitConversionRate", "deliveryRatio"] as const) number(parameters[key], `demandParameters.${key}`, 0, 1);
   for (const key of ["weekdayMultiplier", "weekendMultiplier", "lunchMultiplier", "dinnerMultiplier", "weatherEventMultiplier"] as const) number(parameters[key], `demandParameters.${key}`);
+  if (parameters.deliveryOrdersByHour !== undefined) {
+    validateDeliveryBuckets(parameters.deliveryOrdersByHour, "demandParameters.deliveryOrdersByHour");
+    if (parameters.deliveryRatio !== 0) fail("demandParameters.deliveryRatio", "independent delivery orders require legacy deliveryRatio=0");
+  }
   if (parameters.hourlyMultipliers !== undefined) {
     unique(parameters.hourlyMultipliers.map((b) => `${b.dayType}:${b.hour}`), "demandParameters.hourlyMultipliers");
     parameters.hourlyMultipliers.forEach((b) => {
@@ -142,6 +146,15 @@ export function validateDemandParameters(parameters: DemandParameters) {
       number(b.multiplier, "demandParameters.hourlyMultipliers.multiplier", 0, 10);
     });
   }
+}
+function validateDeliveryBuckets(buckets: NonNullable<DemandParameters["deliveryOrdersByHour"]>, path: string) {
+  unique(buckets.map((b) => `${b.dayType}:${b.hour}`), path);
+  buckets.forEach((b) => {
+    day(b.dayType, `${path}.dayType`);
+    number(b.hour, `${path}.hour`, 0, 23, true);
+    number(b.expectedOrdersPerHour, `${path}.expectedOrdersPerHour`);
+    if (!["poisson", "deterministic"].includes(b.distribution)) fail(`${path}.distribution`, "unsupported distribution");
+  });
 }
 function provenance(value: MarketProfile["provenance"], path: string) {
   if (!["observed", "manual", "derived", "demo"].includes(value.kind)) fail(path, "unknown data provenance");
@@ -168,6 +181,7 @@ export function validateDemand(demand: DemandProfile) {
   ref(demand.lineage.marketRef, "demand.marketRef");
   text(demand.lineage.marketContentKey, "demand.marketContentKey"); text(demand.lineage.parametersContentKey, "demand.parametersContentKey");
   unique(demand.buckets.map((b) => `${b.dayType}:${b.hour}`), "demand.buckets");
+  if (demand.deliveryBuckets !== undefined) validateDeliveryBuckets(demand.deliveryBuckets, "demand.deliveryBuckets");
   demand.buckets.forEach((b) => {
     day(b.dayType, "demand.dayType"); number(b.hour, "demand.hour", 0, 23, true);
     number(b.expectedCustomersPerHour, "demand.expectedCustomersPerHour");
@@ -201,6 +215,11 @@ export function validateOperation(policy: OperationPolicy) {
   }
   if (policy.maxQueueWaitSeconds !== undefined && policy.maxQueueWaitSeconds !== null)
     number(policy.maxQueueWaitSeconds, "operation.maxQueueWaitSeconds");
+  if (policy.delivery !== undefined) {
+    number(policy.delivery.packagingSeconds, "operation.delivery.packagingSeconds", Number.MIN_VALUE);
+    if (policy.delivery.maxQueueWaitSeconds !== null)
+      number(policy.delivery.maxQueueWaitSeconds, "operation.delivery.maxQueueWaitSeconds");
+  }
   assumptions(policy.assumptions, "operation.assumptions");
 }
 export function validateSimulation(config: SimulationConfig) {
@@ -215,6 +234,29 @@ export function validateFinancial(value: FinancialAssumption) {
   number(value.operatingDaysPerMonth, "financial.operatingDaysPerMonth", Number.MIN_VALUE, 31);
   for (const field of ["foodCostRatio", "royaltyRatio", "deliveryFeeRatio"] as const) number(value[field], `financial.${field}`, 0, 1);
   for (const field of ["monthlyRent", "monthlyLabor", "monthlyUtilities", "monthlyMarketing", "monthlyOtherFixed", "initialCapex", "initialFranchiseFee", "initialInteriorCost"] as const) number(value[field], `financial.${field}`);
+  for (const field of ["averageSpendingPerCustomer", "averageDeliveryOrderValue", "deliveryVariableCostPerOrder", "monthlyMaintenance", "monthlyInsurance", "initialEquipmentCost", "initialOtherInvestment", "refundableDeposit"] as const)
+    if (value[field] !== undefined) number(value[field], `financial.${field}`);
+  if (value.paymentFeeRatio !== undefined) number(value.paymentFeeRatio, "financial.paymentFeeRatio", 0, 1);
+  if (value.operatingDayMix !== undefined) {
+    if (!value.operatingDayMix.length) fail("financial.operatingDayMix", "must contain at least one day type");
+    unique(value.operatingDayMix.map((entry) => entry.dayType), "financial.operatingDayMix");
+    value.operatingDayMix.forEach((entry) => {
+      day(entry.dayType, "financial.operatingDayMix.dayType");
+      number(entry.daysPerMonth, "financial.operatingDayMix.daysPerMonth", Number.MIN_VALUE, 31);
+      number(entry.runToDayMultiplier, "financial.operatingDayMix.runToDayMultiplier", Number.MIN_VALUE);
+    });
+    if (Math.abs(value.operatingDayMix.reduce((sum, entry) => sum + entry.daysPerMonth, 0) - value.operatingDaysPerMonth) > 1e-9)
+      fail("financial.operatingDayMix", "days must sum to operatingDaysPerMonth");
+  }
+  if (value.labor !== undefined) {
+    if (!["fixed-monthly", "operation-linked"].includes(value.labor.mode)) fail("financial.labor.mode", "unsupported labor model");
+    if (value.labor.mode === "operation-linked") {
+      if (value.monthlyLabor !== 0) fail("financial.monthlyLabor", "must be zero with operation-linked labor to avoid double counting");
+      for (const field of ["monthlyCostPerCook", "monthlyCostPerServer", "monthlyCostPerCashier", "monthlyCostPerOtherStaff"] as const)
+        number(value.labor[field], `financial.labor.${field}`);
+      number(value.labor.otherStaffCount, "financial.labor.otherStaffCount", 0, Number.MAX_SAFE_INTEGER, true);
+    }
+  }
   assumptions(value.assumptions, "financial.assumptions");
 }
 export function validateConfiguration(value: ProjectConfiguration) {

@@ -15,6 +15,16 @@ export const DEMAND_PARAMETER_DEFINITIONS = {
   hourlyMultipliers: { defaultValue: [], unit: "multiplier per dayType/hour", description: "Optional unique local day-type/hour overrides; absent hours use 1.", validRange: { min: 0, max: 10 } },
 } as const;
 
+/** Opt-in metadata stays separate so legacy parameter panels/default documents remain stable. */
+export const DELIVERY_DEMAND_PARAMETER_DEFINITION = Object.freeze({
+  unit: "orders/hour",
+  description: "Independent delivery order buckets with explicit dayType, hour and arrival distribution; requires legacy deliveryRatio = 0. Missing hours are not zero demand.",
+  validRange: { min: 0, max: Number.MAX_VALUE },
+});
+
+/** No-argument defaults retain the legacy parameter shape; independent orders are explicitly opted in. */
+export function createDefaultDemandParameters(): Omit<DemandParameters, "deliveryOrdersByHour">;
+export function createDefaultDemandParameters(overrides: Partial<DemandParameters>): DemandParameters;
 export function createDefaultDemandParameters(overrides: Partial<DemandParameters> = {}): DemandParameters {
   const parameters: DemandParameters = {
     categoryParticipationRate: DEMAND_PARAMETER_DEFINITIONS.categoryParticipationRate.defaultValue,

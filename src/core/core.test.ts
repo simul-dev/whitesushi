@@ -5,7 +5,7 @@ import {
   failSimulationRun, financialInputContentKey, isFinancialResultStale,
   marketContentKey, prepareSimulationInput, prepareSimulationRun, registerLayout,
   resolveScenario, siteContentKey, updateProject, updateProjectBase, updateScenario,
-  validateLayout,
+  validateLayout, validateFinancial, validateDemandParameters, validateOperation,
 } from "./index";
 import type {
   DemandParameters, FinancialAssumption, FinancialResult, LayoutElement,
@@ -262,5 +262,73 @@ describe("run freshness and result lifecycle", () => {
     expect(() => canonicalJson(new Date())).toThrow();
     const cyclic: { self?: unknown } = {}; cyclic.self = cyclic;
     expect(() => canonicalJson(cyclic)).toThrow(/cyclic/);
+  });
+});
+
+describe("delivery and financial boundary contracts", () => {
+  const delivery = [{ dayType: "weekday" as const, hour: 11, expectedOrdersPerHour: 12, distribution: "poisson" as const }];
+  it("requires independent delivery units, unique hours and explicit observation coverage", () => {
+    expect(() => validateDemandParameters({ ...parameters, deliveryOrdersByHour: delivery })).not.toThrow();
+    expect(() => validateDemandParameters({ ...parameters, deliveryRatio: 0.1, deliveryOrdersByHour: delivery })).toThrow(/deliveryRatio/);
+    expect(() => validateDemandParameters({ ...parameters, deliveryOrdersByHour: [...delivery, ...delivery] })).toThrow();
+    expect(() => validateDemandParameters({ ...parameters, deliveryOrdersByHour: [{ ...delivery[0], expectedOrdersPerHour: -1 }] })).toThrow();
+    const project = readyProject();
+    project.base.demand!.deliveryBuckets = [];
+    const missing = prepareSimulationInput(project, engine);
+    expect(missing.ok).toBe(false);
+    if (!missing.ok) expect(missing.issues.some(i => i.code === "missing-delivery-hour")).toBe(true);
+    project.base.demand!.deliveryBuckets = delivery;
+    const noPolicy = prepareSimulationInput(project, engine);
+    expect(noPolicy.ok).toBe(false);
+    if (!noPolicy.ok) expect(noPolicy.issues.some(i => i.code === "missing-delivery-policy")).toBe(true);
+    project.base.operation!.delivery = { packagingSeconds: 20, maxQueueWaitSeconds: null };
+    expect(prepareSimulationInput(project, engine).ok).toBe(true);
+    expect(() => validateOperation({ ...project.base.operation!, delivery: { packagingSeconds: 0, maxQueueWaitSeconds: null } })).toThrow();
+  });
+
+  it("enforces independent order conservation and rejects omitted or inconsistent delivery results", () => {
+    const project = readyProject();
+    project.base.demand!.deliveryBuckets = delivery;
+    project.base.operation!.delivery = { packagingSeconds: 20, maxQueueWaitSeconds: null };
+    const run = prepared(project);
+    expect(() => completeSimulationRun(run, result(), later)).toThrow(/delivery/);
+    const valid: SimulationResult = { ...result(), delivery: {
+      ordersArrived: 12, ordersCompleted: 8, ordersLost: 1, ordersUnfinished: 3,
+      throughputOrdersPerHour: 8, averageKitchenWaitingSeconds: 10, maxKitchenWaitingSeconds: 30,
+      averageTimeInSystemSeconds: 100, hourlyThroughput: [{ hour: 11, ordersCompleted: 8 }],
+    } };
+    expect(completeSimulationRun(run, valid, later).status).toBe("completed");
+    for (const changed of [
+      { ordersUnfinished: 4 }, { throughputOrdersPerHour: 9 }, { maxKitchenWaitingSeconds: 0 },
+      { hourlyThroughput: [{ hour: 10, ordersCompleted: 8 }] },
+      { hourlyThroughput: [{ hour: 11, ordersCompleted: 7 }] },
+    ]) expect(() => completeSimulationRun(run, { ...valid, delivery: { ...valid.delivery!, ...changed } }, later)).toThrow();
+  });
+
+  it("rejects ambiguous monthly scaling, duplicate labor and nonfinite or negative money", () => {
+    const value: FinancialAssumption = { ...financial(), operatingDayMix: [{ dayType: "weekday", daysPerMonth: 26, runToDayMultiplier: 1 }] };
+    expect(() => validateFinancial(value)).not.toThrow();
+    for (const changed of [
+      { averageDeliveryOrderValue: -1 }, { monthlyInsurance: Infinity }, { paymentFeeRatio: 1.1 },
+      { operatingDayMix: [{ dayType: "weekday" as const, daysPerMonth: 25, runToDayMultiplier: 1 }] },
+      { labor: { mode: "operation-linked" as const, monthlyCostPerCook: 100, monthlyCostPerServer: 100,
+        monthlyCostPerCashier: 100, otherStaffCount: 0, monthlyCostPerOtherStaff: 0 } },
+    ]) expect(() => validateFinancial({ ...value, ...changed })).toThrow();
+  });
+
+  it("detaches nested delivery and financial scenario assumptions", () => {
+    const project = readyProject();
+    const overrides: ScenarioOverrides = {
+      demandParameters: { deliveryOrdersByHour: delivery },
+      operation: { delivery: { packagingSeconds: 20, maxQueueWaitSeconds: null } },
+      financial: { operatingDayMix: [{ dayType: "weekday", daysPerMonth: 26, runToDayMultiplier: 1 }] },
+    };
+    const effective = applyOverrides(project.base, overrides);
+    effective.demandParameters!.deliveryOrdersByHour![0].expectedOrdersPerHour = 999;
+    effective.operation!.delivery!.packagingSeconds = 999;
+    effective.financial!.operatingDayMix![0].runToDayMultiplier = 999;
+    expect(overrides.demandParameters!.deliveryOrdersByHour![0].expectedOrdersPerHour).toBe(12);
+    expect(overrides.operation!.delivery!.packagingSeconds).toBe(20);
+    expect(overrides.financial!.operatingDayMix![0].runToDayMultiplier).toBe(1);
   });
 });
