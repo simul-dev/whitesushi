@@ -1,6 +1,8 @@
 # AI Store Simulator — Space
 
-현재 범위는 **Phase 0~5: Space·Core·Project·Scenario 기반, Market demo provider, Demand 모델, Restaurant DES**입니다. 기존 Floor Plan to 3D 화면과 파일 호환성을 유지하며 분석 엔진은 UI 없이 실행합니다. 실제 상권 API, 민감도·재무 엔진과 통합 Wizard는 후속 범위입니다. 구조와 검증 기록은 [아키텍처](docs/architecture.md), [개발 계획](docs/development-plan.md), [시뮬레이션 모델](docs/simulation-model.md), [데이터 출처](docs/data-sources.md)를 참조하세요. `src/application/storeAnalysis.ts`가 전체 pipeline API이고 같은 경로의 테스트가 샘플 StoreLayout을 포함한 실행 예제입니다.
+현재 범위는 **Phase 0~7 + Delivery: Space·Core·Market demo·Demand·Restaurant DES·반복실험·민감도·재무 엔진**입니다. 기존 Floor Plan to 3D 화면과 파일 호환성을 유지하며 분석 엔진은 UI 없이 실행합니다. 실제 상권 API와 통합 Wizard/Dashboard는 후속 범위입니다. 구조와 검증 기록은 [아키텍처](docs/architecture.md), [개발 계획](docs/development-plan.md), [시뮬레이션](docs/simulation-model.md), [시나리오·민감도](docs/scenario-sensitivity.md), [재무 모델](docs/financial-model.md)을 참조하세요.
+
+새 엔진의 진입점은 `src/application/scenarioAnalysis.ts`의 `createComparisonScenarios` / `compareStoreScenarios`입니다. Conservative·Baseline·Optimistic·Custom의 홀/배달 수요, 운영 집계, 월간 재무 결과를 반환합니다. 실행 가능한 전체 예제는 `src/application/scenarioAnalysis.test.ts`이며 `npx vitest run src/application/scenarioAnalysis.test.ts`로 확인합니다. 기존 단일 실행은 `analyzeStoreProject`를 계속 사용합니다. `npm run dev`의 브라우저 화면은 Space 편집기이며 이번 단계에서 분석 화면은 추가하지 않았습니다.
 
 평면도 PDF를 원본과 비교하며 수정하고, **FloorPlan JSON을 기준으로 3D 모델과 정투영 이미지를 생성**하는 로컬 웹 MVP입니다. React + TypeScript + Vite, PDF.js, SVG, Three.js를 사용합니다. 서버·계정·유료 API가 필요 없으며 업로드한 파일은 브라우저 안에서 처리합니다.
 

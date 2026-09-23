@@ -2,7 +2,7 @@
 
 ## 방향과 현재 범위
 
-기존 FloorPlan → 3D 동작을 보존하면서 Space와 공통 도메인을 분리한다. Phase 0~5의 Market demo provider, 설명 가능한 Demand 모델, Restaurant 운영 모델과 DES를 구현했다. 재무 계산·시나리오 비교 UI·통합 Wizard는 후속 단계다. 현재 Space 화면은 유지하며 분석은 UI 없는 공개 API로 실행한다.
+기존 FloorPlan → 3D 동작을 보존하면서 Space와 공통 도메인을 분리한다. Phase 0~7과 Delivery 확장으로 Market demo, Demand, 공유 주방 DES, 시나리오 반복실험·민감도·재무 계산을 구현했다. 시나리오 비교 UI와 통합 Wizard는 후속 단계다. 현재 Space 화면은 유지하며 분석은 UI 없는 공개 API로 실행한다.
 
 의존 방향은 `Application → Module public API → Core contracts`다. Core는 React, Three.js, PDF.js, DOM 및 네트워크에 의존하지 않는다. Space는 기존 FloorPlan을 소유하고, 다른 모듈에는 명시적인 StoreLayout 어댑터 출력을 제공한다.
 
@@ -127,7 +127,7 @@ Core 함수들은 타입이 정해진 내부 호출 경계와 수치·참조 검
 | `modules/simulation` | `DiscreteEventSimulationEngine`; seeded 도착/서비스 이벤트·자원 경합·대기·종결 및 KPI |
 | `application/storeAnalysis.ts` | `analyzeStoreProject`; 명시적으로 설정된 기준 프로젝트의 Market → Demand → 준비 → DES → 완료/실패를 연결 |
 
-Application 서비스는 provider/model/engine을 주입받고 입력 Project를 복제한다. Market 실패 시 명시적 unavailable issue를 반환하고 demo로 자동 대체하지 않는다. 수요 재계산 후 새 Project 사본에 시장·수요를 저장하며 준비가 실패하면 엔진을 실행하지 않는다. engine 실패는 준비 snapshot을 보존하는 failed run으로 반환한다. 호출자가 ID·기간·시점을 제공한다. 시나리오 반복실험·저장·Wizard UI는 추가하지 않았다.
+Application 서비스는 provider/model/engine을 주입받고 입력 Project를 복제한다. Market 실패 시 명시적 unavailable issue를 반환하고 demo로 자동 대체하지 않는다. 수요 재계산 후 새 Project 사본에 시장·수요를 저장하며 준비가 실패하면 엔진을 실행하지 않는다. engine 실패는 준비 snapshot을 보존하는 failed run으로 반환한다. 호출자가 ID·기간·시점을 제공한다. Phase 3~5의 이 API는 단일 실행을 담당하며, 시나리오 반복실험은 아래 Phase 6~7 API가 담당한다. 저장·Wizard UI는 후속 범위다.
 
 Market의 확장 metadata와 Demand의 bucket breakdown은 기존 profile의 하위 타입이다. 기존 `MarketProvider.fetch`, `DemandModel.calculate`, `OperationModel`, `SimulationEngine.run`의 시그니처는 유지했다. 공통 schemaVersion은 1이며 기존 fixture는 다음 선택 필드 없이도 유효하다.
 
@@ -139,4 +139,20 @@ Market의 확장 metadata와 Demand의 bucket breakdown은 기존 profile의 하
 | `SimulationResult.customersUnfinished?`, `hourlyThroughput?`, `resourceUtilization?`, `revenueStatus?` | 관측 종료 시 고객 보존과 자원별 결과 추적. 새 엔진은 모두 제공. 기존 revenue 숫자는 0이고 `not-modeled`로 구분 |
 | Core validator 공개 export 및 `validateSimulationSnapshot` | 모듈이 Core 내부 파일을 import하거나 snapshot 검사 공식을 중복하지 않도록 함 |
 
-구체적 수요 가정은 [assumptions.md](assumptions.md), 데이터 한계는 [data-sources.md](data-sources.md), 이벤트·KPI 정의는 [simulation-model.md](simulation-model.md)에 기록한다. 배달은 수요 채널 분리까지만 제공하며 매장 DES의 자원 부하에는 포함하지 않는다. 통행거리·동선 충돌, 실제 수요 예측, 수익 모델은 구현하지 않았다.
+구체적 수요 가정은 [assumptions.md](assumptions.md), 데이터 한계는 [data-sources.md](data-sources.md), 이벤트·KPI 정의는 [simulation-model.md](simulation-model.md)에 기록한다. 독립 배달 주문의 공유 주방 부하는 아래 확장으로 모델링한다. 통행거리·동선 충돌·실제 수요 예측은 구현하지 않았다.
+
+## Phase 6~7 및 Delivery 통합
+
+| 공개 진입점 | 책임 |
+|---|---|
+| `modules/scenario` | `createScenarioVariant`, `runScenarioReplications`, `runOneWaySensitivity`; Core ports로 주입된 모델만 호출 |
+| `modules/financial` | `TransparentFinancialEngine`; 완료 run과 명시적 재무 가정의 월간 계산 |
+| `application/scenarioAnalysis.ts` | 시장 조회 → 시나리오별 수요 재계산 → DES 반복실험 → 집계·재무 → 비교 행 |
+
+`createComparisonScenarios`는 기존 Base + Overrides에 보수/기준/낙관/사용자 시나리오를 등록한다. 보수/낙관은 전환율 ±20%, 객단가 ±10%의 상대 변화이며 자동 예측치가 아니다. 객단가는 Financial 설정이 있으면 그 값을, 없으면 Operation 값을 사용한다. 범위를 넘는 상대 변화는 조용히 잘라내지 않고 거부한다.
+
+`compareStoreScenarios`는 시장 profile을 한 번 조회하고 각 시나리오를 동일 seed 목록으로 실행한다. 각 행에 관측 영업 구간의 기대 홀 고객/배달 주문, 분리된 run snapshot, 운영 집계·병목, 조건부 FinancialResult를 보존한다. 시장 실패나 실행 실패를 성공한 결과로 대체하지 않는다. 복수 영업일 유형의 월간 재무 계산은 FinancialEngine에 유형별 run과 day mix를 직접 전달할 수 있으며, 현재 비교 API의 한 시나리오는 한 dayType을 반복한다.
+
+최소 Core 확장은 모두 선택 필드다. `deliveryOrdersByHour`/`deliveryBuckets`는 orders/hour, `operation.delivery`는 포장 시간·대기 한도다. `OperationProcess.arrivalStreams` 및 `queueMetric`은 업종별 stage 이름 없이 채널별 진입과 대기 지표를 선언한다. `SimulationResult.delivery`는 독립 주문 보존·처리량을 제공하며 기존 customers 계열은 홀 고객만 의미한다. Financial의 추가 가격·수수료·day mix·인건비 방식·CAPEX 항목은 기존 필드와 함께 검증한다.
+
+이전 정책과 엔진 descriptor `1.0.0`의 호환성을 유지하고 추가 입력을 snapshot content key에 포함한다. 새 배달 동작은 명시적 입력으로 활성화된다. 장기 저장 및 엔진 알고리즘 변경 시 descriptor 갱신이 필요하다. `src/architecture.test.ts`는 Scenario와 Financial까지 순수 Core 의존성·UI 비의존성을 검사한다. 계산식과 한계는 [scenario-sensitivity.md](scenario-sensitivity.md), [financial-model.md](financial-model.md)에 기록한다.

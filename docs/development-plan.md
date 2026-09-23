@@ -1,6 +1,6 @@
 # 단계별 개발 계획
 
-현재 구현 범위는 **Phase 0~5**다. Phase 3~5는 별도 사용자 요청에 따라 Market/Demand/DES를 병렬 개발하고 통합했다. 기존 UI와 FloorPlan 데이터 호환성을 보존하며 새 의존성을 추가하지 않는다. Phase 6~8은 후속 범위다.
+현재 구현 범위는 **Phase 0~7 + Delivery**다. 기존 UI와 FloorPlan 데이터 호환성을 보존하며 새 의존성을 추가하지 않는다. Phase 6/7의 도메인 엔진·통합 API를 제공하고 비교 Dashboard와 Phase 8 통합 Wizard는 후속 범위로 남긴다.
 
 | Phase | 범위 | 완료 조건 | 상태 |
 |---|---|---|---|
@@ -10,8 +10,8 @@
 | 3 | Market Intelligence | 실제/demo 출처 표시, 교체 가능한 provider | 구현 완료: 명시적 demo + 실패/timeout 경계 |
 | 4 | Demand Model | 유동인구 → 도착률, 가정 편집 | 구현 완료: 계산/metadata API, UI는 후속 |
 | 5 | Restaurant DES | seeded 이벤트 엔진, 자원 보존/KPI 검증 | 구현 완료: generic DES + Restaurant 과정 |
-| 6 | Scenario / Sensitivity | 1-way 비교 표·차트, 반복실험 확장 | 후속 |
-| 7 | Financial / Decision | 비용·손익분기·가정·위험 추적 | 후속 |
+| 6 | Scenario / Sensitivity | 명시적 override, seeded 반복실험·통계·1-way 분석 | 도메인 엔진 완료; 표·차트 UI는 후속 |
+| 7 | Financial | 채널별 비용·이익·손익분기·회수기간·가정 추적 | 도메인 엔진 완료; 투자 판정 없음 |
 | 8 | 통합 Workflow | Site→Space→Market→Demand→Simulation→Scenario→Financial→Decision | 후속 |
 
 ## 검증 및 버전 관리
@@ -61,8 +61,25 @@ Phase 0 커밋 `566598f`, Phase 1 커밋 `3bbf019`, PDF 수명 보완 커밋 `12
 - 기존 `floorplan.json`, `public/sample.pdf`, `public/sample-plan.png` SHA-256은 Phase 0 기록과 동일하다. 사용자 미추적 PDF도 시작/종료 SHA-256 `099b552e4c15a548f9c75ecf5ed90c34c8a424ac128d0f400e78a28fb7e2d1f0`으로 동일하며 fixture/커밋에서 제외했다.
 - 신규 dependency, UI 변경, remote push 및 production deploy는 없다. Core 확장·각 module·통합·문서를 논리적 로컬 commit으로 구분한다.
 
-## Phase 6/7 전 준비
+## 실제 매장 적용 전 준비
 
 1. 실제 관측 또는 명시적인 사용자 가정으로 traffic 전환율, 일행 크기, service/patience 분포와 운영 매핑을 교정한다. Demo 결과를 실제 예측으로 승격하지 않는다.
-2. Phase 6에서 seed 목록별 독립 run, 동일 난수 조건 비교, 평균/분산·신뢰구간과 고정 horizon의 unfinished 해석을 정의한다. 기존 scenario override 변경 후 demand 재계산을 연결한다.
-3. Phase 7은 `revenueStatus=not-modeled` 결과의 0을 실제 매출로 해석하지 말고 throughput 기반 매출 가정과 비용을 별도 Financial Engine에서 계산한다. 배달을 포함하려면 별도 수요 채널 및 주방 자원 경합 모델을 먼저 확정한다.
+2. 반복실험의 경험적 백분위를 신뢰구간으로 해석하지 않는다. 고정 horizon에 남은 unfinished 고객/주문과 가정 불확실성을 함께 검토한다.
+3. `revenueStatus=not-modeled`의 0은 DES 호환성 값이다. FinancialEngine의 완료 처리량·객단가·명시적 영업일 환산과 비용 가정으로 계산한 조건부 결과를 사용한다.
+
+## Phase 6~7 + Delivery 실행 기록
+
+2026-09-23, 실제 시작 HEAD는 `606ee0a8580671249003c7f94ab8780eacbb53e7`이었다. 작업 전 확인 시 `main`과 `origin/main`은 ahead/behind 0/0으로, 요청 텍스트의 10 commits ahead와 달랐다. 원격 푸시나 production 배포는 이번 작업 범위에 포함하지 않았다.
+
+실제 메인 1명과 서브에이전트 3명이 병렬로 작업했다. A는 Scenario/Replication/Sensitivity, B는 Financial, C는 Delivery Demand/Operation/DES를 담당했다. C는 기존 `architecture_audit` 에이전트 세션을 새 작업으로 재사용했다. 메인은 Core 공통 계약, Application 비교 통합, 전체 회귀, 문서 정합성, 로컬 커밋을 담당했다. A는 배달 scheduler를, B는 Application 경계를 추가 검토했다.
+
+- 기준 202개 unit / 9개 browser / build 통과를 확인한 후 개발했다. 기존 테스트를 삭제하거나 기대 조건을 완화하지 않았다.
+- 전체 unit: **21개 파일 / 275개 통과**. 신규 73개는 Core 4, 아키텍처 2, Scenario 22, Financial 22, Delivery 19, 전체 통합 4개다.
+- `npm run build` 통과. 기존 browser **9개 모두 통과 (36.0초)**: PDF/portable JSON, 편집·undo, 3D·6방향 camera, GLB/GLTF·PNG, PDF calibration, 세션/worker 정리 포함.
+- A~C는 수요 포화, 테이블·좌석 제약과 주방 제약의 차이, cook/주방 확장 효과를 실제 DES로 검증했다. D1~D4는 배달 0 호환, 여유 주방, 배달 부하 경합, 양 채널 병목 완화를 검증했다.
+- `application/scenarioAnalysis.test.ts`는 샘플 StoreLayout 157요소 → synthetic Market → 두 수요 채널 → DES → 동일 seed 반복실험 → 집계 → 재무 → 네 시나리오 비교 → 객단가 민감도를 연결한다. 저수요 적자·중간 수요 흑자·과수요 대기/이탈 증가와 매출 포화도 검증한다.
+- 실행 중 발견한 Application 입력 사전 검증을 보완했다. 빈 run ID prefix, 잘못된 seed 목록·시각은 provider 호출 전 거부한다. 배달 주문 누락·채널 보존 오류·시간별 완료 합계 오류는 Core 경계에서 거부한다.
+- 기존 UI, dependency, 공개 원본 자산은 변경하지 않았다. 보호 대상 미추적 PDF는 읽기 전용 해시 확인 외에는 사용하지 않으며 fixture·커밋에서 제외한다.
+- 보호 PDF SHA-256은 시작/종료 모두 `099b552e4c15a548f9c75ecf5ed90c34c8a424ac128d0f400e78a28fb7e2d1f0`이다. `floorplan.json`, `public/sample.pdf`, `public/sample-plan.png`도 기존 SHA-256과 동일하다.
+
+각 엔진의 사용법·단위·한계는 [scenario-sensitivity.md](scenario-sensitivity.md), [financial-model.md](financial-model.md), [simulation-model.md](simulation-model.md)에 기록한다. 브라우저의 분석 Dashboard는 이번 단계에서 추가하지 않았다.

@@ -1,6 +1,6 @@
 # Restaurant 운영 모델과 Discrete Event Simulation
 
-Phase 5 구현: `RestaurantOperationModel` 1.0.0 + `DiscreteEventSimulationEngine` (`generic-des`) 1.0.0. 입력은 StoreLayout + DemandProfile + OperationPolicy + SimulationConfig다. Market 유동인구는 반드시 Demand 모델에서 매장 고객 도착률로 변환한다. 엔진은 React/UI/Three.js/PDF.js 또는 다른 모듈 구현을 import하지 않는다.
+Phase 5 및 Delivery 확장: `RestaurantOperationModel` 1.0.0 + `DiscreteEventSimulationEngine` (`generic-des`) 1.0.0. 입력은 StoreLayout + DemandProfile + OperationPolicy + SimulationConfig다. 기존 정책/fixture는 호환되며 선택 필드로 독립 배달 주문과 포장을 활성화한다. Market 유동인구는 반드시 Demand 모델에서 매장 고객 도착률로 변환한다. 엔진은 React/UI/Three.js/PDF.js 또는 다른 모듈 구현을 import하지 않는다.
 
 ## 실행과 과정 분리
 
@@ -35,7 +35,7 @@ arrival → seating queue → table + seat assignment (0 seconds)
 - 관측 시작 전/종료 후 및 영업 window 밖 candidate는 제외한다. 영업시간 밖 잠재 고객은 실제 도착이나 lost로 세지 않는다. 영업 종료 전 입장한 고객은 horizon까지 계속 처리한다. Deterministic phase는 영업 재개 때 임의 초기화하지 않는다.
 - Restaurant은 입력 서비스 시간을 constant duration으로 사용한다. Generic process는 positive-mean exponential 또는 nonnegative constant 분포를 지원한다. Restaurant의 6개 서비스 시간은 양수이며 착석/terminal만 0초다.
 - seed는 unsigned 32-bit 정수다. PRNG는 seed와 arrival hour/party-size hour/service entity·stage key에서 독립 stream을 만든다. `Math.random`, 현재 시간, 전역 RNG를 사용하지 않는다. capacity 변경으로 서비스 draw가 arrival draw를 소비하지 않는다.
-- 한 `run`은 한 replication이다. `replications > 1`은 명시적으로 거부한다. 복수 실행은 caller가 각각의 seed/ID로 snapshot을 준비한다. 집계 통계·Monte Carlo UI는 Phase 6 범위다.
+- 한 `run`은 한 replication이다. `replications > 1`은 명시적으로 거부한다. `modules/scenario`가 seed/ID별 snapshot을 준비하고 복수 실행을 집계한다. [반복실험·민감도](scenario-sensitivity.md)를 참조한다. Monte Carlo parameter uncertainty와 UI는 후속 범위다.
 - 실행 보호 한도는 candidate parties 100,000 및 시간당 expected party rate 100,000이다. 초과는 명시 오류이며 임의로 수요를 잘라 성공 결과를 만들지 않는다.
 
 ## 종료와 KPI
@@ -70,4 +70,34 @@ Bottleneck 목록은 **관측된 직접 blocking**이며 원인 추론이나 자
 - 자동화 E: 같은 input/seed 결과 완전 동일, 실행 간 mutable state 공유 없음.
 - 추가: 분석적으로 계산 가능한 busy time/완료 수, timeout/closing, 미완료 고객, fractional arrivals, generic graph, 외부 모듈 경계 및 sample Space 전체 integration.
 
-배달 주문의 자원 부하, 메뉴별 batching, 걷기·충돌·공간 거리, 예약, 합석, 재고, warm-up/steady-state, 실제 수요 보정은 없다. 공간의 테이블/좌석·역할 매핑만 운영 자원으로 사용한다. 기본값과 mock 시장 결과를 실제 매장의 운영 보장이나 매출예측으로 제시하지 않는다. Phase 6 전에 관측 자료로 모델과 patience/service-time 분포를 교정하고 반복실험의 통계 정의를 확정해야 한다.
+메뉴별 batching, 걷기·충돌·공간 거리, 예약, 합석, 재고, warm-up/steady-state, 실제 수요 보정은 없다. 공간의 테이블/좌석·역할 매핑만 운영 자원으로 사용한다. 기본값과 mock 시장 결과를 실제 매장의 운영 보장이나 매출예측으로 제시하지 않는다. 실제 사용 전 관측 자료로 모델과 patience/service-time 분포를 교정해야 한다.
+
+## 독립 배달 주문과 공유 주방
+
+`DemandParameters.deliveryOrdersByHour`가 있으면 독립 주문 모드다. `deliveryRatio=0`이어야 하며 홀 도착률은 차감하지 않는다. DemandProfile의 `deliveryBuckets`에 동일 dayType/hour별 `expectedOrdersPerHour`와 poisson/deterministic 분포를 보존한다. 관측 시간의 각 bucket은 0까지 명시해야 하며 누락을 자동으로 0으로 채우지 않는다. 기존 deliveryRatio 단독 입력은 호환 모드이고 배달 DES 분석으로 해석하지 않는다.
+
+```text
+홀:   테이블 → 주문 → 공유 주방(cook + kitchen slot) → 서빙 → 식사 → 결제 → 청소
+배달: 주문 도착 ───→ 공유 주방(cook + kitchen slot) → 포장(cook) → 완료
+```
+
+배달 주문 1개는 job 1개다. 홀 일행과 동일한 `cookingSeconds` 동안 기존 cook 1명과 kitchen slot 1개를 점유한다. 조리가 끝나면 둘을 반환한 후 `operation.delivery.packagingSeconds` 동안 cook 1명을 다시 획득한다. 앞서 기다리는 홀 조리가 포장보다 먼저 처리될 수 있다. 양쪽의 calendar·자원 pool·FIFO가 하나이므로 영향이 자원 경쟁에서 발생한다. 배달에 테이블·서버·cashier·식사 단계는 없다. 라이더·이동거리·배송시간은 포함하지 않는다.
+
+`operation.delivery.maxQueueWaitSeconds`는 배달 조리 queue에만 적용한다. null은 무기한, 시간 초과는 ordersLost다. 포장 대기는 무기한이며 horizon의 잔여 주문은 ordersUnfinished다. 홀과 배달은 동일 영업 window 및 고정 horizon을 사용하고, 각 채널 안에서 `arrived = completed/served + lost + unfinished`를 만족한다.
+
+Generic scheduler는 `arrivalStreams`의 channel/startStageId와 stage의 `queueMetric`을 읽는다. Restaurant stage 이름은 하드코딩하지 않는다. 배달 RNG key는 별도 namespace이고 기존 홀 key·ID는 유지한다. 배달 0에서 기존 Poisson/Deterministic 홀 결과가 동일한지 테스트한다.
+
+| 지표 | 단위와 분모 |
+|---|---|
+| 기존 customers 계열 | 홀 **고객 수**, 배달 주문을 더하지 않음 |
+| `delivery.ordersArrived/Completed/Lost/Unfinished` | 배달 **주문 수**, 포장 terminal 이후 완료 |
+| `delivery.throughputOrdersPerHour` | 완료 주문 × 3600 / 전체 관측 seconds |
+| `delivery.hourlyThroughput` | hour별 완료 주문 count, 합계는 ordersCompleted |
+| `averageDineInFoodWaitingSeconds` / `maxDineInFoodWaitingSeconds` | food-wait로 표시된 조리 queue의 대기, 조리·서빙 시간 제외; 평균은 모든 홀 도착 고객 기준 |
+| `delivery.averageKitchenWaitingSeconds` / `maxKitchenWaitingSeconds` | kitchen-wait queue 대기; 평균은 모든 배달 도착 주문 기준 |
+| `delivery.averageTimeInSystemSeconds` | 완료 주문의 도착~포장 종료 평균, lost/unfinished 제외 |
+| kitchen/staff utilization | 두 채널이 함께 소비한 자원의 busy-unit-seconds |
+
+대기 평균에는 horizon까지 누적된 미완료 대기를 포함한다. 병목 설명은 홀 customer-seconds와 배달 order-seconds를 분리하여 표시하며 서로 다른 단위를 합산하지 않는다. 이 지표는 관측된 blocking이고 최대 물리적 용량의 증명이 아니다.
+
+Delivery D1(0 수요 호환), D2(주방 여유), D3(배달 증가로 홀 음식 대기 증가), D4(cook/slot 증설로 두 채널 개선), timeout/미완료/포장 FIFO/이름을 바꾼 generic process를 자동 검증한다. 매출과 수수료 계산은 독립 [FinancialEngine](financial-model.md)이 담당한다.
