@@ -1,0 +1,159 @@
+{
+  "name": "llm-agent",
+  "default": {
+    "staffing": {
+      "cooks": [
+        2,
+        4,
+        3,
+        3,
+        2,
+        2,
+        3,
+        4,
+        4,
+        2,
+        1
+      ],
+      "servers": [
+        2,
+        3,
+        3,
+        2,
+        2,
+        2,
+        2,
+        3,
+        2,
+        2,
+        1
+      ],
+      "cashiers": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    "dispatch": {
+      "rule": "weighted-wait",
+      "deliveryWeight": 0.5,
+      "backfill": true
+    },
+    "tables": {
+      "rule": "best-fit"
+    }
+  },
+  "byScenario": {
+    "weekday": {
+      "staffing": {
+        "cooks": [
+          2,
+          3,
+          3,
+          2,
+          1,
+          1,
+          2,
+          3,
+          3,
+          2,
+          1
+        ],
+        "servers": [
+          1,
+          3,
+          2,
+          2,
+          1,
+          1,
+          2,
+          3,
+          2,
+          2,
+          1
+        ],
+        "cashiers": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "dispatch": {
+        "rule": "weighted-wait",
+        "deliveryWeight": 0.5,
+        "backfill": true
+      },
+      "tables": {
+        "rule": "best-fit"
+      }
+    },
+    "rainy-weekend": {
+      "staffing": {
+        "cooks": [
+          2,
+          4,
+          4,
+          2,
+          2,
+          2,
+          3,
+          5,
+          5,
+          3,
+          1
+        ],
+        "servers": [
+          1,
+          3,
+          2,
+          2,
+          1,
+          1,
+          2,
+          3,
+          2,
+          2,
+          1
+        ],
+        "cashiers": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "dispatch": {
+        "rule": "weighted-wait",
+        "deliveryWeight": 0.5,
+        "backfill": true
+      },
+      "tables": {
+        "rule": "best-fit"
+      }
+    }
+  },
+  "description": "Coding agent given only the task statement and the eval command; 11 of 12 allowed dev evaluations, no access to source code or other policies."
+}

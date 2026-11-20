@@ -29,16 +29,25 @@ service level when guests arrive in bunches, and the only way to know before ope
 
 ## Results (test seeds)
 
-LEADERBOARD_TABLE
+| policy | meets service levels | total daily profit (KRW) | weekday | weekend | rainy-weekend |
+|---|---|---|---|---|---|
+| sim-search | yes | 818.4만 | 202.2만 | 316.3만 | 299.9만 |
+| llm-agent | yes | 812.4만 | 204.6만 | 312.6만 | 295.2만 |
+| workload-rule-fifo | no | 805.2만 | 206.6만 | 305.1만 ✗ | 293.5만 |
+| fixed-4-2-fifo | no | 733.8만 | 168.6만 | 292.7만 ✗ | 272.5만 |
+| fixed-2-2-dine-in-first | no | 730.4만 | 190.4만 ✗ | 292.5만 ✗ | 247.6만 ✗ |
+| fixed-2-2-fifo | no | 728.2만 | 192.2만 ✗ | 288.2만 ✗ | 247.8만 ✗ |
+| fixed-2-2-delivery-first | no | 644.9만 | 184.8만 ✗ | 258.5만 ✗ | 201.6만 ✗ |
 
 - `fixed-2-2-*` are the original app defaults (2 cooks, 2 servers all day). The queue rule alone cannot rescue them:
   `delivery-first` saves delivery and loses the hall, `dine-in-first` does the opposite.
 - `fixed-4-2-fifo` buys safety with labour and still fails the weekend: the weekend bottleneck is the tables, not the kitchen.
 - `workload-rule-fifo` staffs each hour from the forecast, the way a careful manager would. It is close on profit and misses one service level.
 - `sim-search` is a plain greedy search that lets the simulator judge every change. It changes the table rule and the queue rule
-  per day and trims staff hour by hour, and it is the only baseline that meets every service level.
+  per day and trims staff hour by hour, and meets every service level with the highest profit.
 - `llm-agent` is a coding agent given only the task statement and the `eval` command, limited to 12 dev evaluations,
-  with no access to the source code or the other policies. See `results/llm-agent.md`.
+  with no access to the source code or the other policies. With 11 evaluations it reached 99% of `sim-search`'s profit,
+  which used 952 day-evaluations; it never tried the table rule. See [`results/llm-agent.md`](results/llm-agent.md).
 
 Full per-day numbers: [`results/leaderboard.md`](results/leaderboard.md).
 
