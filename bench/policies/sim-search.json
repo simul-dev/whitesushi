@@ -1,0 +1,157 @@
+{
+  "name": "sim-search",
+  "description": "Greedy simulation-based search on 20 dev seeds with 10% service-level headroom (952 scenario evaluations).",
+  "default": {
+    "staffing": {
+      "cooks": [
+        2,
+        3,
+        3,
+        2,
+        1,
+        2,
+        3,
+        4,
+        3,
+        3,
+        2
+      ],
+      "servers": [
+        2,
+        2,
+        2,
+        1,
+        1,
+        1,
+        1,
+        2,
+        2,
+        2,
+        1
+      ],
+      "cashiers": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    "dispatch": {
+      "rule": "fifo"
+    },
+    "tables": {
+      "rule": "limit-empty-seats",
+      "maxEmptySeats": 2
+    }
+  },
+  "byScenario": {
+    "weekend": {
+      "staffing": {
+        "cooks": [
+          2,
+          4,
+          3,
+          2,
+          3,
+          2,
+          3,
+          4,
+          3,
+          3,
+          1
+        ],
+        "servers": [
+          1,
+          2,
+          2,
+          3,
+          2,
+          2,
+          2,
+          3,
+          2,
+          2,
+          1
+        ],
+        "cashiers": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "dispatch": {
+        "rule": "longest-wait",
+        "backfill": true
+      },
+      "tables": {
+        "rule": "limit-empty-seats",
+        "maxEmptySeats": 2
+      }
+    },
+    "rainy-weekend": {
+      "staffing": {
+        "cooks": [
+          2,
+          4,
+          4,
+          2,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4,
+          1
+        ],
+        "servers": [
+          1,
+          1,
+          2,
+          1,
+          1,
+          1,
+          1,
+          2,
+          2,
+          1,
+          1
+        ],
+        "cashiers": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "dispatch": {
+        "rule": "fifo",
+        "backfill": true
+      },
+      "tables": {
+        "rule": "best-fit"
+      }
+    }
+  }
+}

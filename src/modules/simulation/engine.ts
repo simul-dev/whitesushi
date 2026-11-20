@@ -9,7 +9,7 @@ import { MinHeap, randomStream } from "./random";
 type Stage = OperationProcess["stages"][number];
 type Requirement = Stage["requirements"][number];
 type Resource = OperationProcess["resources"][number] & {
-  busy: number; busySeconds: number; blockedCustomerSeconds: number; blockedOrderSeconds: number; occupied: Set<number>;
+  busy: number; busySeconds: number; capacitySeconds: number; blockedCustomerSeconds: number; blockedOrderSeconds: number; occupied: Set<number>;
 };
 type Allocation = { resourceId: string; units: number; members: number[]; release: Requirement["release"] };
 type CustomerParty = {
@@ -18,8 +18,36 @@ type CustomerParty = {
   foodWaitSeconds: number; kitchenWaitSeconds: number;
   state: "waiting" | "active" | "served" | "lost"; requestedAt: number; requestId: number; held: Allocation[];
 };
-type Event = { time: number; sequence: number; kind: "arrival" | "completion" | "timeout"; party: CustomerParty; requestId: number };
-const PRIORITY = { completion: 0, timeout: 1, arrival: 2 };
+type Event = { time: number; sequence: number; kind: "capacity" | "arrival" | "completion" | "timeout"; party: CustomerParty; requestId: number; change?: { resourceId: string; units: number } };
+const PRIORITY = { capacity: -1, completion: 0, timeout: 1, arrival: 2 };
+
+/** Read-only view of one waiting request, given to a dispatch rule. */
+export interface DispatchRequest {
+  channel: "dine-in" | "delivery"; size: number; stageId: string;
+  arrivedAt: number; requestedAt: number; waitedSeconds: number;
+}
+/** One party/order at the end of its life (or at the horizon when unfinished). */
+export interface OutcomeRecord {
+  channel: "dine-in" | "delivery"; size: number; arrivedAt: number; endedAt: number | null;
+  outcome: "served" | "lost" | "unfinished"; waitSeconds: number; foodWaitSeconds: number; kitchenWaitSeconds: number;
+}
+/**
+ * Optional operating-policy hooks. Omitted hooks keep the 1.0.0 behaviour exactly:
+ * FIFO dispatch with head-of-line blocking, best-fit tables, constant capacities and durations.
+ */
+export interface EngineControl {
+  /** Lower rank is served first; ties keep request order. */
+  rank?: (request: DispatchRequest, now: number) => number;
+  /** When true a request that cannot start does not block later requests for the same resources. */
+  backfill?: boolean;
+  /** Pick a free table index for a party, or null to keep it waiting. */
+  chooseTable?: (partySize: number, free: { index: number; capacity: number }[], now: number) => number | null;
+  /** Pooled-resource capacity over time, seconds from run start; tasks in progress are never pre-empted. */
+  capacitySchedule?: Record<string, { atSeconds: number; units: number }[]>;
+  /** Coefficient of variation of a mean-one lognormal factor applied to positive constant durations. */
+  serviceTimeCv?: number;
+  onOutcome?: (record: OutcomeRecord) => void;
+}
 const fail = (path: string, message: string): never => { throw new DomainValidationError(path, message); };
 const ratio = (numerator: number, denominator: number) => denominator > 0 ? numerator / denominator : 0;
 // Resource conservation is checked separately; bound floating-point summation roundoff.
@@ -30,7 +58,7 @@ const MAX_PARTIES = 100000;
 export class DiscreteEventSimulationEngine implements SimulationEngine {
   readonly descriptor = Object.freeze({ id: "generic-des", version: "1.0.0" });
 
-  async run({ runId, snapshot, operationModel, observation }: Parameters<SimulationEngine["run"]>[0]): Promise<SimulationResult> {
+  async run({ runId, snapshot, operationModel, observation, control }: Parameters<SimulationEngine["run"]>[0] & { control?: EngineControl }): Promise<SimulationResult> {
     if (!runId.trim()) fail("runId", "required");
     validateSimulationSnapshot(snapshot);
     if (canonicalJson(snapshot.engine) !== canonicalJson(this.descriptor)) fail("snapshot.engine", "engine version mismatch");
@@ -71,9 +99,37 @@ export class DiscreteEventSimulationEngine implements SimulationEngine {
     const probabilityMass = sizes.reduce((sum, item) => sum + item.probability, 0);
     const meanPartySize = sizes.reduce((sum, item) => sum + item.size * item.probability, 0) / probabilityMass;
     const stages = new Map(process.stages.map((stage) => [stage.id, stage]));
-    const resources = new Map<string, Resource>(process.resources.map((resource) => [resource.id, { ...resource, busy: 0, busySeconds: 0, blockedCustomerSeconds: 0, blockedOrderSeconds: 0, occupied: new Set<number>() }]));
+    const resources = new Map<string, Resource>(process.resources.map((resource) => [resource.id, { ...resource, busy: 0, busySeconds: 0, capacitySeconds: 0, blockedCustomerSeconds: 0, blockedOrderSeconds: 0, occupied: new Set<number>() }]));
     const calendar = new MinHeap<Event>((a, b) => a.time - b.time || PRIORITY[a.kind] - PRIORITY[b.kind] || a.sequence - b.sequence);
     let sequence = 0, partyId = 0, requestId = 0, now = 0;
+    const cv = control?.serviceTimeCv ?? 0;
+    if (!(Number.isFinite(cv) && cv >= 0 && cv <= 3)) fail("control.serviceTimeCv", "must be a finite number in [0, 3]");
+    const scheduled = control?.capacitySchedule ? Object.entries(control.capacitySchedule) : [];
+    const sentinel = { id: -1 } as CustomerParty;
+    for (const [resourceId, steps] of scheduled) {
+      const resource = resources.get(resourceId);
+      if (!resource) fail("control.capacitySchedule", `unknown resource ${resourceId}`);
+      if (resource!.unitCapacities) fail("control.capacitySchedule", `${resourceId} has exclusive units and cannot be rescheduled`);
+      let previous = -1;
+      for (const step of steps) {
+        if (!Number.isFinite(step.atSeconds) || step.atSeconds < 0 || step.atSeconds <= previous) fail("control.capacitySchedule", `${resourceId} steps must be increasing and nonnegative`);
+        if (!Number.isSafeInteger(step.units) || step.units < 0) fail("control.capacitySchedule", `${resourceId} units must be integers >= 0`);
+        previous = step.atSeconds;
+        if (step.atSeconds === 0) resource!.capacityUnits = step.units;
+        else if (step.atSeconds <= horizon) calendar.push({ kind: "capacity", time: step.atSeconds, sequence: sequence++, party: sentinel, requestId: -1, change: { resourceId, units: step.units } });
+      }
+    }
+    function serviceFactor(party: CustomerParty, stageId: string) {
+      if (cv === 0) return 1;
+      const random = randomStream(config.seed, `noise:${party.channel}:${party.streamId}:${party.id}:${stageId}`);
+      const sigma2 = Math.log(1 + cv * cv);
+      const normal = Math.sqrt(-2 * Math.log(random())) * Math.cos(2 * Math.PI * random());
+      return Math.exp(-sigma2 / 2 + Math.sqrt(sigma2) * normal);
+    }
+    function outcome(party: CustomerParty, state: OutcomeRecord["outcome"], endedAt: number | null) {
+      control?.onOutcome?.({ channel: party.channel, size: party.size, arrivedAt: party.arrivedAt, endedAt, outcome: state,
+        waitSeconds: party.waitSeconds, foodWaitSeconds: party.foodWaitSeconds, kitchenWaitSeconds: party.kitchenWaitSeconds });
+    }
     let pending: CustomerParty[] = [];
     const arrived: CustomerParty[] = [];
     let frameIndex = 0, frameCount = 0, lastFrameTime = -1;
@@ -188,16 +244,25 @@ export class DiscreteEventSimulationEngine implements SimulationEngine {
       let members: number[] = [];
       if (resource.unitCapacities) {
         const minimum = requirement.minimumUnitCapacity === "party-size" ? party.size : 0;
-        members = resource.unitCapacities.map((capacity, index) => ({ capacity, index }))
+        const free = resource.unitCapacities.map((capacity, index) => ({ capacity, index }))
           .filter((item) => item.capacity >= minimum && !resource.occupied.has(item.index))
-          .sort((a, b) => a.capacity - b.capacity || a.index - b.index).slice(0, units).map((item) => item.index);
-        if (members.length !== units) return null;
+          .sort((a, b) => a.capacity - b.capacity || a.index - b.index);
+        if (control?.chooseTable && units === 1 && requirement.minimumUnitCapacity === "party-size") {
+          if (!free.length) return null;
+          const chosen = control.chooseTable(party.size, free.map(item => ({ ...item })), now);
+          if (chosen === null) return null;
+          if (!free.some(item => item.index === chosen)) fail("control.chooseTable", "returned a table that is occupied, too small or unknown");
+          members = [chosen];
+        } else {
+          members = free.slice(0, units).map((item) => item.index);
+          if (members.length !== units) return null;
+        }
       }
       return { resourceId: requirement.resourceId, units, members, release: requirement.release };
     }
     function advance(time: number) {
       const elapsed = time - now;
-      for (const resource of resources.values()) resource.busySeconds += elapsed * resource.busy;
+      for (const resource of resources.values()) { resource.busySeconds += elapsed * resource.busy; resource.capacitySeconds += elapsed * resource.capacityUnits; }
       for (const party of pending) {
         for (const requirement of stages.get(party.stageId)!.requirements) {
           if (!select(party, requirement)) {
@@ -235,11 +300,17 @@ export class DiscreteEventSimulationEngine implements SimulationEngine {
       const blocked = new Set<string>();
       const remaining: CustomerParty[] = [];
       // Earlier requests retain priority for shared resources; independent pools can progress.
-      for (const party of pending) {
+      // An injected rank reorders who is "earlier"; backfill drops head-of-line blocking.
+      const order = control?.rank ? pending.map((party, index) => ({ party, index, rank: control.rank!({
+        channel: party.channel, size: party.size, stageId: party.stageId, arrivedAt: party.arrivedAt,
+        requestedAt: party.requestedAt, waitedSeconds: party.waitSeconds + now - party.requestedAt }, now) }))
+        .sort((a, b) => a.rank - b.rank || a.index - b.index).map(item => item.party) : pending;
+      for (const party of order) {
         const stage = stages.get(party.stageId)!;
-        const allocations = stage.requirements.map((requirement) => select(party, requirement));
-        if (stage.requirements.some((requirement) => blocked.has(requirement.resourceId)) || allocations.some((allocation) => allocation === null)) {
-          stage.requirements.forEach((requirement) => blocked.add(requirement.resourceId));
+        const waitsBehind = stage.requirements.some((requirement) => blocked.has(requirement.resourceId));
+        const allocations = waitsBehind ? [] : stage.requirements.map((requirement) => select(party, requirement));
+        if (waitsBehind || allocations.some((allocation) => allocation === null)) {
+          if (!control?.backfill) stage.requirements.forEach((requirement) => blocked.add(requirement.resourceId));
           remaining.push(party); continue;
         }
         for (const allocation of allocations as Allocation[]) {
@@ -251,17 +322,22 @@ export class DiscreteEventSimulationEngine implements SimulationEngine {
         }
         recordWait(party, now - party.requestedAt);
         party.state = "active";
-        const duration = stage.duration.kind === "constant" ? stage.duration.seconds :
+        const duration = stage.duration.kind === "constant" ? stage.duration.seconds * (stage.duration.seconds > 0 ? serviceFactor(party, stage.id) : 1) :
           -Math.log(randomStream(config.seed, party.channel === "dine-in" ? `service:${party.id}:${stage.id}` : `service:delivery:${party.streamId}:${party.id}:${stage.id}`)()) * stage.duration.meanSeconds;
         schedule("completion", now + duration, party);
       }
-      pending = remaining;
+      pending = control?.rank ? pending.filter(party => remaining.includes(party)) : remaining;
     }
     let event: Event | undefined;
     let completedSystemSeconds = 0, completedDeliverySystemSeconds = 0;
     while ((event = calendar.pop())) {
       if (event.time > horizon) break;
       const { party } = event;
+      if (event.kind === "capacity") {
+        captureBefore(event.time); advance(event.time);
+        resources.get(event.change!.resourceId)!.capacityUnits = event.change!.units;
+        dispatch(); continue;
+      }
       if (event.kind === "timeout" && (party.state !== "waiting" || event.requestId !== party.requestId)) continue;
       // Flush only BEFORE the next clock value. All same-time events, including
       // zero-duration chains created by dispatch, finish before their frame.
@@ -279,6 +355,7 @@ export class DiscreteEventSimulationEngine implements SimulationEngine {
         release(party, stage.outcome !== null);
         if (stage.outcome) {
           party.state = stage.outcome;
+          outcome(party, stage.outcome, now);
           if (stage.outcome === "served") {
             // Completions exactly at the horizon belong to the last observed hour.
             const hour = Math.min(lastHour - 1, Math.floor((start + now) / 3600));
@@ -296,6 +373,7 @@ export class DiscreteEventSimulationEngine implements SimulationEngine {
     }
     advance(horizon);
     pending.forEach((party) => { recordWait(party, horizon - party.requestedAt); });
+    if (control?.onOutcome) arrived.filter(party => party.state === "waiting" || party.state === "active").forEach(party => outcome(party, "unfinished", null));
     captureBefore(horizon, true);
     if (observeFrame && lastFrameTime < horizon) captureFrame(horizon);
     const dineIn = arrived.filter(party => party.channel === "dine-in");
@@ -306,10 +384,12 @@ export class DiscreteEventSimulationEngine implements SimulationEngine {
     const ordersCompleted = delivery.filter(order => order.state === "served").length;
     const ordersLost = delivery.filter(order => order.state === "lost").length;
     if (!Number.isSafeInteger(customersArrived)) fail("customersArrived", "customer count exceeds safe integer range");
-    const resourceUtilization = [...resources.values()].map((resource) => ({ resourceId: resource.id, capacityUnits: resource.capacityUnits, utilization: utilizationRatio(resource.busySeconds, resource.capacityUnits * horizon) }));
+    // With a capacity schedule the denominator is the scheduled unit-seconds actually available.
+    const available = (resource: Resource) => scheduled.length ? resource.capacitySeconds : resource.capacityUnits * horizon;
+    const resourceUtilization = [...resources.values()].map((resource) => ({ resourceId: resource.id, capacityUnits: resource.capacityUnits, utilization: utilizationRatio(resource.busySeconds, available(resource)) }));
     const utilization = (category: string) => {
       const selected = [...resources.values()].filter((resource) => resource.category === category);
-      return utilizationRatio(selected.reduce((sum, resource) => sum + resource.busySeconds, 0), selected.reduce((sum, resource) => sum + resource.capacityUnits * horizon, 0));
+      return utilizationRatio(selected.reduce((sum, resource) => sum + resource.busySeconds, 0), selected.reduce((sum, resource) => sum + available(resource), 0));
     };
     const assumptions: Assumption[] = [
       { id: "des-time", description: "Empty system at start; admit only during operating windows; stop at fixed observation horizon without draining", value: horizon, unit: "seconds", source: "generic-des/1.0.0" },

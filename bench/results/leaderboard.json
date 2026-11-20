@@ -1,0 +1,433 @@
+[
+  {
+    "policy": "sim-search",
+    "split": "test",
+    "feasible": true,
+    "total": 8183705.6,
+    "scenarios": [
+      {
+        "scenario": "weekday",
+        "seeds": 50,
+        "profit": 2021596.3999999997,
+        "profitStdErr": 37171.11256125691,
+        "margin": 2878596.4,
+        "labor": 857000,
+        "dineInArrived": 177.64,
+        "dineInServed": 171.8,
+        "dineInLostRate": 0.03265030398558883,
+        "dineInP90WaitSeconds": 738.4817536247501,
+        "deliveryArrived": 52.46,
+        "deliveryCompleted": 52.38,
+        "deliveryLostRate": 0.0015249714067861228,
+        "deliveryP90KitchenWaitSeconds": 269.1480318257745,
+        "cookUtilization": 0.4949366031249095,
+        "serverUtilization": 0.30370332925371435,
+        "violations": []
+      },
+      {
+        "scenario": "weekend",
+        "seeds": 50,
+        "profit": 3162860,
+        "profitStdErr": 42586.157762582836,
+        "margin": 4123860,
+        "labor": 961000,
+        "dineInArrived": 262.82,
+        "dineInServed": 251.26,
+        "dineInLostRate": 0.0435278898105167,
+        "dineInP90WaitSeconds": 848.3227759787078,
+        "deliveryArrived": 70.86,
+        "deliveryCompleted": 69.76,
+        "deliveryLostRate": 0.015523567598080722,
+        "deliveryP90KitchenWaitSeconds": 462.2265392874615,
+        "cookUtilization": 0.6453618141207498,
+        "serverUtilization": 0.34023164044640297,
+        "violations": []
+      },
+      {
+        "scenario": "rainy-weekend",
+        "seeds": 50,
+        "profit": 2999249.2,
+        "profitStdErr": 42483.22804603516,
+        "margin": 3916249.2,
+        "labor": 917000,
+        "dineInArrived": 185.44,
+        "dineInServed": 180.84,
+        "dineInLostRate": 0.024158757549611734,
+        "dineInP90WaitSeconds": 789.8915322825233,
+        "deliveryArrived": 127.2,
+        "deliveryCompleted": 125.58,
+        "deliveryLostRate": 0.012735849056603774,
+        "deliveryP90KitchenWaitSeconds": 539.8842404212483,
+        "cookUtilization": 0.6857281193257111,
+        "serverUtilization": 0.38398679098577954,
+        "violations": []
+      }
+    ]
+  },
+  {
+    "policy": "workload-rule-fifo",
+    "split": "test",
+    "feasible": false,
+    "total": 8051989.6,
+    "scenarios": [
+      {
+        "scenario": "weekday",
+        "seeds": 50,
+        "profit": 2065657.9999999998,
+        "profitStdErr": 37670.757825980516,
+        "margin": 2877658,
+        "labor": 812000,
+        "dineInArrived": 177.64,
+        "dineInServed": 172,
+        "dineInLostRate": 0.03129925692411619,
+        "dineInP90WaitSeconds": 820.9063592198163,
+        "deliveryArrived": 52.46,
+        "deliveryCompleted": 52.1,
+        "deliveryLostRate": 0.006862371330537552,
+        "deliveryP90KitchenWaitSeconds": 233.35945586939124,
+        "cookUtilization": 0.512765024183816,
+        "serverUtilization": 0.34515302646137036,
+        "violations": []
+      },
+      {
+        "scenario": "weekend",
+        "seeds": 50,
+        "profit": 3051258.4,
+        "profitStdErr": 44402.977299845705,
+        "margin": 4131258.4,
+        "labor": 1080000,
+        "dineInArrived": 262.82,
+        "dineInServed": 250.82,
+        "dineInLostRate": 0.0452020394186135,
+        "dineInP90WaitSeconds": 951.7120747563749,
+        "deliveryArrived": 70.86,
+        "deliveryCompleted": 70.8,
+        "deliveryLostRate": 0.000846740050804403,
+        "deliveryP90KitchenWaitSeconds": 135.37036274774073,
+        "cookUtilization": 0.5268060530849887,
+        "serverUtilization": 0.34053313261141366,
+        "violations": [
+          "dine-in p90 wait 952s > 900s"
+        ]
+      },
+      {
+        "scenario": "rainy-weekend",
+        "seeds": 50,
+        "profit": 2935073.2,
+        "profitStdErr": 44568.61615892548,
+        "margin": 3948073.2,
+        "labor": 1013000,
+        "dineInArrived": 185.44,
+        "dineInServed": 181.94,
+        "dineInLostRate": 0.018226919758412424,
+        "dineInP90WaitSeconds": 539.4801348006804,
+        "deliveryArrived": 127.2,
+        "deliveryCompleted": 126.98,
+        "deliveryLostRate": 0.001729559748427673,
+        "deliveryP90KitchenWaitSeconds": 225.74433818558464,
+        "cookUtilization": 0.6188656237502089,
+        "serverUtilization": 0.3373214110395653,
+        "violations": []
+      }
+    ]
+  },
+  {
+    "policy": "fixed-4-2-fifo",
+    "split": "test",
+    "feasible": false,
+    "total": 7337794.4,
+    "scenarios": [
+      {
+        "scenario": "weekday",
+        "seeds": 50,
+        "profit": 1685512.4,
+        "profitStdErr": 39309.772697321714,
+        "margin": 2884512.4,
+        "labor": 1199000,
+        "dineInArrived": 177.64,
+        "dineInServed": 172.18,
+        "dineInLostRate": 0.030511146138257148,
+        "dineInP90WaitSeconds": 568.9857382802402,
+        "deliveryArrived": 52.46,
+        "deliveryCompleted": 52.46,
+        "deliveryLostRate": 0,
+        "deliveryP90KitchenWaitSeconds": 86.25183832781113,
+        "cookUtilization": 0.31556963842449937,
+        "serverUtilization": 0.23545381893945136,
+        "violations": []
+      },
+      {
+        "scenario": "weekend",
+        "seeds": 50,
+        "profit": 2926811.6,
+        "profitStdErr": 43398.24260935471,
+        "margin": 4125811.6,
+        "labor": 1199000,
+        "dineInArrived": 262.82,
+        "dineInServed": 250.34,
+        "dineInLostRate": 0.04733277528346397,
+        "dineInP90WaitSeconds": 997.9964251964957,
+        "deliveryArrived": 70.86,
+        "deliveryCompleted": 70.86,
+        "deliveryLostRate": 0,
+        "deliveryP90KitchenWaitSeconds": 175.8415023095622,
+        "cookUtilization": 0.4426704054083527,
+        "serverUtilization": 0.3402838199333383,
+        "violations": [
+          "dine-in p90 wait 998s > 900s"
+        ]
+      },
+      {
+        "scenario": "rainy-weekend",
+        "seeds": 50,
+        "profit": 2725470.4,
+        "profitStdErr": 43381.97287311958,
+        "margin": 3924470.4,
+        "labor": 1199000,
+        "dineInArrived": 185.44,
+        "dineInServed": 181.34,
+        "dineInLostRate": 0.02146246764452114,
+        "dineInP90WaitSeconds": 627.0869417895738,
+        "deliveryArrived": 127.2,
+        "deliveryCompleted": 125.72,
+        "deliveryLostRate": 0.011635220125786163,
+        "deliveryP90KitchenWaitSeconds": 466.34399163752823,
+        "cookUtilization": 0.5305033503732729,
+        "serverUtilization": 0.24483166342247353,
+        "violations": []
+      }
+    ]
+  },
+  {
+    "policy": "fixed-2-2-dine-in-first",
+    "split": "test",
+    "feasible": false,
+    "total": 7304290.799999999,
+    "scenarios": [
+      {
+        "scenario": "weekday",
+        "seeds": 50,
+        "profit": 1903894.4,
+        "profitStdErr": 31744.334711862735,
+        "margin": 2728894.4,
+        "labor": 825000,
+        "dineInArrived": 177.64,
+        "dineInServed": 171.06,
+        "dineInLostRate": 0.03681603242512948,
+        "dineInP90WaitSeconds": 959.1253650130602,
+        "deliveryArrived": 52.46,
+        "deliveryCompleted": 41.24,
+        "deliveryLostRate": 0.21387723980175372,
+        "deliveryP90KitchenWaitSeconds": 900,
+        "cookUtilization": 0.5651676472754779,
+        "serverUtilization": 0.23436467768111424,
+        "violations": [
+          "dine-in p90 wait 959s > 900s",
+          "delivery lost 21.4% > 5%",
+          "delivery p90 kitchen wait 900s > 600s"
+        ]
+      },
+      {
+        "scenario": "weekend",
+        "seeds": 50,
+        "profit": 2924621.9999999995,
+        "profitStdErr": 33269.10734342855,
+        "margin": 3749622,
+        "labor": 825000,
+        "dineInArrived": 262.82,
+        "dineInServed": 246.5,
+        "dineInLostRate": 0.06194353549958146,
+        "dineInP90WaitSeconds": 1200,
+        "deliveryArrived": 70.86,
+        "deliveryCompleted": 44.9,
+        "deliveryLostRate": 0.36635619531470504,
+        "deliveryP90KitchenWaitSeconds": 900,
+        "cookUtilization": 0.7343628855969333,
+        "serverUtilization": 0.3368757653037565,
+        "violations": [
+          "dine-in lost 6.2% > 5%",
+          "dine-in p90 wait 1200s > 900s",
+          "delivery lost 36.6% > 5%",
+          "delivery p90 kitchen wait 900s > 600s"
+        ]
+      },
+      {
+        "scenario": "rainy-weekend",
+        "seeds": 50,
+        "profit": 2475774.4,
+        "profitStdErr": 33865.31299151183,
+        "margin": 3300774.4,
+        "labor": 825000,
+        "dineInArrived": 185.44,
+        "dineInServed": 181.4,
+        "dineInLostRate": 0.02113891285591027,
+        "dineInP90WaitSeconds": 571.2111209039431,
+        "deliveryArrived": 127.2,
+        "deliveryCompleted": 76.08,
+        "deliveryLostRate": 0.4018867924528302,
+        "deliveryP90KitchenWaitSeconds": 900,
+        "cookUtilization": 0.7782423284183729,
+        "serverUtilization": 0.244876773923626,
+        "violations": [
+          "delivery lost 40.2% > 5%",
+          "delivery p90 kitchen wait 900s > 600s"
+        ]
+      }
+    ]
+  },
+  {
+    "policy": "fixed-2-2-fifo",
+    "split": "test",
+    "feasible": false,
+    "total": 7281701.199999999,
+    "scenarios": [
+      {
+        "scenario": "weekday",
+        "seeds": 50,
+        "profit": 1921866.8,
+        "profitStdErr": 30434.72457497002,
+        "margin": 2746866.8,
+        "labor": 825000,
+        "dineInArrived": 177.64,
+        "dineInServed": 168.42,
+        "dineInLostRate": 0.05167755010132853,
+        "dineInP90WaitSeconds": 1223.5984131858168,
+        "deliveryArrived": 52.46,
+        "deliveryCompleted": 45.38,
+        "deliveryLostRate": 0.13495996950057187,
+        "deliveryP90KitchenWaitSeconds": 900,
+        "cookUtilization": 0.5862549110220969,
+        "serverUtilization": 0.23223154585142278,
+        "violations": [
+          "dine-in lost 5.2% > 5%",
+          "dine-in p90 wait 1224s > 900s",
+          "delivery lost 13.5% > 5%",
+          "delivery p90 kitchen wait 900s > 600s"
+        ]
+      },
+      {
+        "scenario": "weekend",
+        "seeds": 50,
+        "profit": 2881577.9999999995,
+        "profitStdErr": 31870.897439385626,
+        "margin": 3706578,
+        "labor": 825000,
+        "dineInArrived": 262.82,
+        "dineInServed": 236.82,
+        "dineInLostRate": 0.0984704360398752,
+        "dineInP90WaitSeconds": 1561.3766697588799,
+        "deliveryArrived": 70.86,
+        "deliveryCompleted": 51.42,
+        "deliveryLostRate": 0.2743437764606266,
+        "deliveryP90KitchenWaitSeconds": 900,
+        "cookUtilization": 0.7580875947753555,
+        "serverUtilization": 0.32861404433701064,
+        "violations": [
+          "dine-in lost 9.8% > 5%",
+          "dine-in p90 wait 1561s > 900s",
+          "delivery lost 27.4% > 5%",
+          "delivery p90 kitchen wait 900s > 600s"
+        ]
+      },
+      {
+        "scenario": "rainy-weekend",
+        "seeds": 50,
+        "profit": 2478256.4,
+        "profitStdErr": 32128.56075558482,
+        "margin": 3303256.4,
+        "labor": 825000,
+        "dineInArrived": 185.44,
+        "dineInServed": 177.6,
+        "dineInLostRate": 0.04109145815358067,
+        "dineInP90WaitSeconds": 1331.6675601930274,
+        "deliveryArrived": 127.2,
+        "deliveryCompleted": 80.18,
+        "deliveryLostRate": 0.36965408805031447,
+        "deliveryP90KitchenWaitSeconds": 900,
+        "cookUtilization": 0.7958093295768703,
+        "serverUtilization": 0.24156756053335987,
+        "violations": [
+          "dine-in p90 wait 1332s > 900s",
+          "delivery lost 37.0% > 5%",
+          "delivery p90 kitchen wait 900s > 600s"
+        ]
+      }
+    ]
+  },
+  {
+    "policy": "fixed-2-2-delivery-first",
+    "split": "test",
+    "feasible": false,
+    "total": 6448701.2,
+    "scenarios": [
+      {
+        "scenario": "weekday",
+        "seeds": 50,
+        "profit": 1847930.4,
+        "profitStdErr": 28084.936063858488,
+        "margin": 2672930.4,
+        "labor": 825000,
+        "dineInArrived": 177.64,
+        "dineInServed": 155.94,
+        "dineInLostRate": 0.11956766494032875,
+        "dineInP90WaitSeconds": 2866.3733387120737,
+        "deliveryArrived": 52.46,
+        "deliveryCompleted": 52.32,
+        "deliveryLostRate": 0.002668699961875715,
+        "deliveryP90KitchenWaitSeconds": 379.7158434984849,
+        "cookUtilization": 0.6079818330741207,
+        "serverUtilization": 0.219034105172886,
+        "violations": [
+          "dine-in lost 12.0% > 5%",
+          "dine-in p90 wait 2866s > 900s"
+        ]
+      },
+      {
+        "scenario": "weekend",
+        "seeds": 50,
+        "profit": 2584839.5999999996,
+        "profitStdErr": 29442.43658666856,
+        "margin": 3409839.5999999996,
+        "labor": 825000,
+        "dineInArrived": 262.82,
+        "dineInServed": 195.82,
+        "dineInLostRate": 0.2413058366943155,
+        "dineInP90WaitSeconds": 4234.0292671899115,
+        "deliveryArrived": 70.86,
+        "deliveryCompleted": 69.94,
+        "deliveryLostRate": 0.012983347445667513,
+        "deliveryP90KitchenWaitSeconds": 522.1011638135897,
+        "cookUtilization": 0.8031187944162648,
+        "serverUtilization": 0.2837219377693351,
+        "violations": [
+          "dine-in lost 24.1% > 5%",
+          "dine-in p90 wait 4234s > 900s"
+        ]
+      },
+      {
+        "scenario": "rainy-weekend",
+        "seeds": 50,
+        "profit": 2015931.2,
+        "profitStdErr": 24665.59188571506,
+        "margin": 2840931.2,
+        "labor": 825000,
+        "dineInArrived": 185.44,
+        "dineInServed": 112.08,
+        "dineInLostRate": 0.33401639344262296,
+        "dineInP90WaitSeconds": 9897.938340528814,
+        "deliveryArrived": 127.2,
+        "deliveryCompleted": 110.72,
+        "deliveryLostRate": 0.12955974842767295,
+        "deliveryP90KitchenWaitSeconds": 900,
+        "cookUtilization": 0.8806952772464252,
+        "serverUtilization": 0.1704505225014697,
+        "violations": [
+          "dine-in lost 33.4% > 5%",
+          "dine-in p90 wait 9898s > 900s",
+          "delivery lost 13.0% > 5%",
+          "delivery p90 kitchen wait 900s > 600s"
+        ]
+      }
+    ]
+  }
+]
